@@ -13,9 +13,10 @@ Cinco microservicios más un gateway de entrada, cortados por **frontera de cons
 **No tiene base de datos ni lógica de negocio.** Si un endpoint necesita decidir algo, está en el servicio equivocado.
 
 ```
-/api/places/*    → booking        /api/promos/*   → promo
-/api/bookings/*  → booking        /api/rooms/*    → game
-/api/plan        → agent
+/api/places/*        → booking        /api/promos/*   → promo
+/api/reservations/*  → booking        /api/rooms/*    → game
+/api/events          → booking        /api/plan       → agent
+/api/auth/demo       → el propio gateway: firma el JWT fijo de un usuario semilla
 ```
 
 ---
@@ -202,20 +203,24 @@ events (seq        BIGSERIAL PRIMARY KEY,  -- orden global
         id         UUID UNIQUE,            -- para descartar duplicados
         type       TEXT,
         payload    JSONB,
-        zone       TEXT,                   -- para enrutar
-        room       TEXT,
+        topics     TEXT[],                 -- a quién se enruta
         created_at TIMESTAMPTZ)
 ```
 
-En memoria: `conexión → { zonas[], salas[], last_seq }`
+Los **tópicos** generalizan el enrutamiento: `zone:zona-g` (quien mira el mapa), `place:p7` (quien tiene la ficha abierta o el panel de ese negocio), `user:u1` (eventos personales) y `room:A7X9` (una sala). Un mismo evento puede ir a varios: un `INV.UPDATE` de `p7` va a `place:p7`, y su resumen `PLACE.UPDATE` a `zone:zona-t`.
+
+En memoria: `conexión → { tópicos[], last_seq }`
 
 ### Protocolo con el cliente
 
 ```
-→ SUBSCRIBE { zone: "zona-g" }     al mover el mapa
-→ SUBSCRIBE { room: "A7X9" }       al entrar a una sala
-→ RESUME    { last_seq: 4821 }     al reconectar
-← EVENT     { seq, id, type, payload }
+→ { type: "AUTH", token }                        primer mensaje; el token nunca va en la URL
+→ { type: "SUBSCRIBE",   topic: "zone:zona-g" }  al mover el mapa
+→ { type: "SUBSCRIBE",   topic: "room:A7X9" }    al entrar a una sala
+→ { type: "UNSUBSCRIBE", topic }
+→ { type: "RESUME", last_seq: 4821, topics }     al reconectar
+← { type: "EVENT",  event: { seq, id, type, payload, topics, at } }
+← { type: "REPLAY", events: [...] }
 ```
 
 ### Mecanismo de RT‑2 — reenvío selectivo
@@ -223,7 +228,7 @@ En memoria: `conexión → { zonas[], salas[], last_seq }`
 ```sql
 SELECT * FROM events
  WHERE seq > $last_seq
-   AND (zone = ANY($zonas) OR room = ANY($salas))
+   AND topics && $topics_del_cliente     -- intersección de arreglos
  ORDER BY seq;
 ```
 

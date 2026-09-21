@@ -10,12 +10,11 @@ Piloto en **Zona G y Zona T** — Chapinero, Bogotá · MVP de **8 semanas**.
 
 | Parte | Estado |
 |---|---|
-| `frontend/prototipo/` | ✅ **Existe.** Prototipo navegable desplegado en Netlify |
+| `frontend/` | ✅ **Existe.** App del cliente y panel del negocio en Next.js, lista para Vercel |
 | `docs/` | ✅ **Existe.** Arquitectura propuesta y diagrama |
 | `services/*` | 🔲 Por construir — ver [arquitectura](#arquitectura) |
-| `frontend/mobile`, `frontend/panel` | 🔲 Por construir |
 
-> ⚠️ **El prototipo no es código de producción.** Es un sitio estático que simula en JavaScript las carreras de concurrencia, el consumo de cupos y el multijugador, sin backend. Sirve para validar el flujo y explicar los retos; la implementación real vive en `services/`.
+El frontend corre hoy **sin backend**: en modo `mock` simula los servicios en el navegador con los mismos mecanismos de concurrencia y reconexión. Cuando los servicios existan se cambia a modo `live` con una variable de entorno. Detalles en [`frontend/README.md`](frontend/README.md).
 
 ---
 
@@ -121,8 +120,8 @@ Pauta, métricas del negocio, notificaciones push fuera de la app, reseñas, bil
 
 | Capa | Herramienta |
 |---|---|
-| App móvil | React Native + Expo |
-| Panel del negocio | Next.js |
+| Frontend | Next.js — web *mobile-first*, cliente y panel en una sola app, desplegada en Vercel |
+| Mapa | Leaflet con teselas de OpenStreetMap / CARTO — sin llave de API |
 | Servicios | NestJS (Node + TypeScript) |
 | Tiempo real | Socket.IO |
 | Base de datos | PostgreSQL |
@@ -137,10 +136,7 @@ Pauta, métricas del negocio, notificaciones push fuera de la app, reseñas, bil
 
 ```
 planazo/
-├── frontend/
-│   ├── prototipo/        ✅ prototipo navegable (Netlify)
-│   ├── mobile/           🔲 React Native + Expo
-│   └── panel/            🔲 Next.js
+├── frontend/             ✅ Next.js — cliente y panel del negocio
 ├── services/
 │   ├── api-gateway/      🔲
 │   ├── booking/          🔲
@@ -163,27 +159,20 @@ Un solo repositorio y un `docker-compose up`. Sin CI/CD independiente por servic
 | 1 | `game` | 9 de las 25 historias del MVP están aquí |
 | 2 | `realtime` + event log | **Arranca primero:** los demás dependen de él para difundir |
 | 3 | `booking` + `promo` | El mismo patrón mental con dos mecanismos distintos |
-| 4 | `frontend` + `agent` + seed | Clientes, datos semilla y el agente al final |
+| 4 | `agent` + seed + integración | El frontend ya existe: conectarlo a modo `live` a medida que cada servicio sale |
 
 `realtime` debería tener el canal funcionando en la **semana 2**, porque `game`, `promo` y `booking` lo necesitan para difundir.
 
 ---
 
-## Correr el prototipo
-
-Es estático: no requiere build ni dependencias.
+## Correr el frontend
 
 ```bash
-cd frontend/prototipo
-npx serve .
+cd frontend
+npm install
+npm run dev
 ```
 
-O arrastrando la carpeta `frontend/prototipo` a [app.netlify.com/drop](https://app.netlify.com/drop). Instrucciones de despliegue en [`frontend/prototipo/README.md`](frontend/prototipo/README.md).
+Abre `http://localhost:3000` y entra como cliente o como establecimiento. No necesita backend ni variables de entorno.
 
-| Página | Contenido |
-|---|---|
-| `index.html` | Portada con enlaces a todo |
-| `prototipo.html` | App del cliente y panel del establecimiento |
-| `story-map.html` | Story mapping con MoSCoW y los hilos de recorrido |
-| `caso-negocio.html` | Caso de negocio con investigación de mercado |
-| `brief.html` | Brief técnico del proyecto |
+**Desplegar en Vercel:** importa el repositorio y define **Root Directory = `frontend`**. Vercel detecta Next.js solo. Pasos completos y contrato con el backend en [`frontend/README.md`](frontend/README.md).

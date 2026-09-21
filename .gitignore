@@ -8,6 +8,8 @@ build/
 .next/
 .expo/
 coverage/
+*.tsbuildinfo
+.vercel/
 
 # entorno y secretos — nunca se suben
 .env
