@@ -1,0 +1,238 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Arquitectura de Planazo</title>
+<style>
+:root{
+  --bg:#FFFFFF; --ink:#22302F; --soft:#6E8180; --line:#D8E0DE; --panel:#F6F8F7;
+  --rt:#0E7C5E; --rt-t:#E6F2EE;
+  --cc:#B0620A; --cc-t:#FBF0E2;
+  --ext:#9AA5A5;
+}
+*,*::before,*::after{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{
+  background:var(--bg); color:var(--ink);
+  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  -webkit-font-smoothing:antialiased; line-height:1.55;
+}
+@media (prefers-reduced-motion:reduce){*{transition-duration:.001ms!important}}
+
+.page{max-width:1320px;margin:0 auto;padding:40px 34px 48px}
+.kick{font-size:11.5px;letter-spacing:.17em;text-transform:uppercase;color:var(--soft);margin-bottom:7px}
+h1{font-size:40px;font-weight:700;letter-spacing:-.03em;margin:0 0 8px;line-height:1.05}
+.sub{font-size:15px;color:var(--soft);margin:0;max-width:82ch}
+
+figure{margin:26px 0 0}
+svg{display:block;width:100%;max-width:100%;height:auto}
+figcaption{font-size:13px;color:var(--soft);margin-top:14px;line-height:1.6;max-width:94ch}
+figcaption b{color:var(--ink)}
+
+.legend{display:flex;gap:26px;flex-wrap:wrap;align-items:center;margin-top:18px;font-size:12.5px;color:var(--soft)}
+.legend span{display:flex;align-items:center;gap:7px}
+.legend i{width:26px;height:16px;border-radius:3px;display:inline-block;border:1px solid}
+.legend i.rt{background:var(--rt-t);border-color:var(--rt)}
+.legend i.cc{background:var(--cc-t);border-color:var(--cc)}
+.legend i.core{background:transparent;border:2px solid var(--ink)}
+.legend i.ext{background:transparent;border-color:var(--ext);border-style:dashed}
+
+.why{margin-top:34px;padding-top:24px;border-top:1px solid var(--line);
+  display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:22px}
+.why h3{font-size:13.5px;font-weight:700;margin:0 0 5px}
+.why p{font-size:13px;color:var(--soft);margin:0;line-height:1.6}
+.why b{color:var(--ink)}
+</style>
+</head>
+<body>
+<div class="page">
+
+  <div class="kick">Planazo · MVP de 8 semanas</div>
+  <h1>Arquitectura de servicios</h1>
+  <p class="sub">Cinco servicios, cortados por frontera de consistencia y perfil de ejecución. Tres se construyen sin atajos porque ahí viven los seis retos; el resto se apoya en datos semilla.</p>
+
+  <figure>
+    <svg viewBox="0 0 1240 740" role="img"
+         aria-label="Arquitectura de Planazo. Los clientes hablan HTTP con el API Gateway y WebSocket con el Realtime Gateway. El API Gateway enruta a booking, promo, game y agent. Booking, promo y game forman el núcleo sin atajos donde viven los seis retos: booking usa PostgreSQL con lock optimista para CC-3, promo usa decremento atómico en Redis para CC-1, y game corre un bucle a 20 Hz con sorted set para RT-3 y CC-2. Agent es simplificable y no implementa ningún reto. Los tres del núcleo publican al bus de eventos que el Realtime Gateway consume, persiste con secuencia global y difunde por zona y sala.">
+      <defs>
+        <marker id="ar" viewBox="0 0 10 10" refX="9" refY="5"
+                markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+          <path d="M0 0 L10 5 L0 10 z" fill="currentColor"/>
+        </marker>
+      </defs>
+
+      <!-- ================= CLIENTES ================= -->
+      <rect x="300" y="26" width="570" height="60" rx="6"
+            fill="var(--panel)" stroke="currentColor" stroke-width="1.5"/>
+      <text x="585" y="52" text-anchor="middle" font-size="15" font-weight="700" fill="currentColor">Clientes</text>
+      <text x="585" y="72" text-anchor="middle" font-size="11.5" fill="var(--soft)">App móvil (cliente)  ·  Panel web (establecimiento)</text>
+
+      <line x1="480" y1="86" x2="480" y2="134" stroke="currentColor" stroke-width="1.5" marker-end="url(#ar)"/>
+      <text x="490" y="114" font-size="11" fill="var(--soft)">HTTP</text>
+
+      <polyline points="870,56 1070,56 1070,134" fill="none" stroke="currentColor"
+                stroke-width="1.5" marker-start="url(#ar)" marker-end="url(#ar)"/>
+      <text x="962" y="46" text-anchor="middle" font-size="11" fill="var(--soft)">WebSocket</text>
+
+      <!-- ================= API GATEWAY ================= -->
+      <rect x="55" y="136" width="850" height="58" rx="6"
+            fill="var(--panel)" stroke="currentColor" stroke-width="1.5"/>
+      <text x="480" y="162" text-anchor="middle" font-size="15" font-weight="700" fill="currentColor">API Gateway</text>
+      <text x="480" y="180" text-anchor="middle" font-size="11" fill="var(--soft)">enruta y valida el token fijo</text>
+
+      <line x1="150" y1="194" x2="150" y2="266" stroke="currentColor" stroke-width="1.5" marker-end="url(#ar)"/>
+      <line x1="370" y1="194" x2="370" y2="266" stroke="currentColor" stroke-width="1.5" marker-end="url(#ar)"/>
+      <line x1="590" y1="194" x2="590" y2="266" stroke="currentColor" stroke-width="1.5" marker-end="url(#ar)"/>
+      <line x1="810" y1="194" x2="810" y2="266" stroke="currentColor" stroke-width="1.5" marker-end="url(#ar)"/>
+
+      <!-- ================= REALTIME GATEWAY ================= -->
+      <rect x="950" y="136" width="240" height="320" rx="6"
+            fill="none" stroke="currentColor" stroke-width="2.5"/>
+      <text x="1070" y="163" text-anchor="middle" font-size="15" font-weight="700" fill="currentColor">Realtime Gateway</text>
+      <text x="1070" y="181" text-anchor="middle" font-size="10.5" fill="var(--soft)">el único con conexiones vivas</text>
+
+      <rect x="968" y="198" width="204" height="94" rx="5" fill="var(--rt-t)" stroke="var(--rt)" stroke-width="1.2"/>
+      <text x="1070" y="220" text-anchor="middle" font-size="12" font-weight="700" fill="var(--rt)">Suscripciones</text>
+      <text x="1070" y="239" text-anchor="middle" font-size="10.5" fill="var(--ink)">difunde solo a quien está</text>
+      <text x="1070" y="254" text-anchor="middle" font-size="10.5" fill="var(--ink)">en esa zona o en esa sala</text>
+      <rect x="1026" y="266" width="88" height="17" rx="8" fill="#FFFFFF" stroke="var(--rt)" stroke-width="1"/>
+      <text x="1070" y="279" text-anchor="middle" font-size="10" font-weight="700" fill="var(--rt)">RT-1 · RT-3</text>
+
+      <rect x="968" y="308" width="204" height="128" rx="5" fill="var(--rt-t)" stroke="var(--rt)" stroke-width="1.2"/>
+      <text x="1070" y="330" text-anchor="middle" font-size="12" font-weight="700" fill="var(--rt)">Registro de eventos</text>
+      <text x="1070" y="349" text-anchor="middle" font-size="10.5" fill="var(--ink)">secuencia global · id único</text>
+      <text x="1070" y="364" text-anchor="middle" font-size="10.5" fill="var(--ink)">al reconectar reenvía solo</text>
+      <text x="1070" y="379" text-anchor="middle" font-size="10.5" fill="var(--ink)">lo que falta desde su seq</text>
+      <text x="1070" y="397" text-anchor="middle" font-size="10" font-style="italic" fill="var(--soft)">se implementa una vez, todos lo heredan</text>
+      <rect x="1046" y="407" width="48" height="17" rx="8" fill="#FFFFFF" stroke="var(--rt)" stroke-width="1"/>
+      <text x="1070" y="420" text-anchor="middle" font-size="10" font-weight="700" fill="var(--rt)">RT-2</text>
+
+      <!-- ============ BANDA DEL NÚCLEO ============ -->
+      <rect x="43" y="238" width="654" height="24" rx="4" fill="var(--ink)"/>
+      <text x="370" y="255" text-anchor="middle" font-size="11.5" font-weight="700" fill="#FFFFFF"
+            letter-spacing="1.2">NÚCLEO SIN ATAJOS — AQUÍ VIVEN LOS SEIS RETOS</text>
+
+      <!-- ================= booking ================= -->
+      <rect x="55" y="268" width="190" height="206" rx="6" fill="none" stroke="currentColor" stroke-width="2.5"/>
+      <text x="150" y="296" text-anchor="middle" font-size="16" font-weight="700" fill="currentColor">booking</text>
+      <text x="150" y="317" text-anchor="middle" font-size="10.5" fill="var(--soft)">franjas · cupos · reservas</text>
+      <text x="150" y="332" text-anchor="middle" font-size="10.5" fill="var(--soft)">el click por el último cupo</text>
+      <rect x="86" y="343" width="56" height="18" rx="9" fill="var(--cc-t)" stroke="var(--cc)" stroke-width="1"/>
+      <text x="114" y="356" text-anchor="middle" font-size="10" font-weight="700" fill="var(--cc)">CC-3</text>
+      <rect x="150" y="343" width="56" height="18" rx="9" fill="var(--rt-t)" stroke="var(--rt)" stroke-width="1"/>
+      <text x="178" y="356" text-anchor="middle" font-size="10" font-weight="700" fill="var(--rt)">RT-1</text>
+      <line x1="55" y1="377" x2="245" y2="377" stroke="var(--line)" stroke-width="1"/>
+      <text x="150" y="400" text-anchor="middle" font-size="11.5" font-weight="700" fill="currentColor">PostgreSQL</text>
+      <text x="150" y="419" text-anchor="middle" font-size="10.5" fill="var(--soft)">lock optimista:</text>
+      <text x="150" y="434" text-anchor="middle" font-size="10.5" fill="var(--soft)">UPDATE … WHERE version</text>
+      <text x="150" y="453" text-anchor="middle" font-size="10" font-style="italic" fill="var(--ext)">catálogo desde seed;</text>
+      <text x="150" y="467" text-anchor="middle" font-size="10" font-style="italic" fill="var(--ext)">la lógica de cupos es real</text>
+
+      <!-- ================= promo ================= -->
+      <rect x="275" y="268" width="190" height="206" rx="6" fill="none" stroke="currentColor" stroke-width="2.5"/>
+      <text x="370" y="296" text-anchor="middle" font-size="16" font-weight="700" fill="currentColor">promo</text>
+      <text x="370" y="317" text-anchor="middle" font-size="10.5" fill="var(--soft)">promociones con stock 1</text>
+      <text x="370" y="332" text-anchor="middle" font-size="10.5" fill="var(--soft)">el click por el cupón</text>
+      <rect x="342" y="343" width="56" height="18" rx="9" fill="var(--cc-t)" stroke="var(--cc)" stroke-width="1"/>
+      <text x="370" y="356" text-anchor="middle" font-size="10" font-weight="700" fill="var(--cc)">CC-1</text>
+      <line x1="275" y1="377" x2="465" y2="377" stroke="var(--line)" stroke-width="1"/>
+      <text x="370" y="400" text-anchor="middle" font-size="11.5" font-weight="700" fill="currentColor">Redis + PostgreSQL</text>
+      <text x="370" y="419" text-anchor="middle" font-size="10.5" fill="var(--soft)">decremento atómico:</text>
+      <text x="370" y="434" text-anchor="middle" font-size="10.5" fill="var(--soft)">DECR, nunca bajo cero</text>
+      <text x="370" y="453" text-anchor="middle" font-size="10" font-style="italic" fill="var(--ext)">aislado: el pico de reclamos</text>
+      <text x="370" y="467" text-anchor="middle" font-size="10" font-style="italic" fill="var(--ext)">no tumba las reservas</text>
+
+      <!-- ================= game ================= -->
+      <rect x="495" y="268" width="190" height="206" rx="6" fill="none" stroke="currentColor" stroke-width="2.5"/>
+      <text x="590" y="296" text-anchor="middle" font-size="16" font-weight="700" fill="currentColor">game</text>
+      <text x="590" y="317" text-anchor="middle" font-size="10.5" fill="var(--soft)">salas · partida a 20 Hz</text>
+      <text x="590" y="332" text-anchor="middle" font-size="10.5" fill="var(--soft)">marcador de la sala</text>
+      <rect x="526" y="343" width="56" height="18" rx="9" fill="var(--rt-t)" stroke="var(--rt)" stroke-width="1"/>
+      <text x="554" y="356" text-anchor="middle" font-size="10" font-weight="700" fill="var(--rt)">RT-3</text>
+      <rect x="590" y="343" width="56" height="18" rx="9" fill="var(--cc-t)" stroke="var(--cc)" stroke-width="1"/>
+      <text x="618" y="356" text-anchor="middle" font-size="10" font-weight="700" fill="var(--cc)">CC-2</text>
+      <line x1="495" y1="377" x2="685" y2="377" stroke="var(--line)" stroke-width="1"/>
+      <text x="590" y="400" text-anchor="middle" font-size="11.5" font-weight="700" fill="currentColor">Memoria + Redis</text>
+      <text x="590" y="419" text-anchor="middle" font-size="10.5" fill="var(--soft)">estado en proceso,</text>
+      <text x="590" y="434" text-anchor="middle" font-size="10.5" fill="var(--soft)">puntajes con ZADD</text>
+      <text x="590" y="453" text-anchor="middle" font-size="10" font-style="italic" fill="var(--ext)">el tick de 20 Hz no puede</text>
+      <text x="590" y="467" text-anchor="middle" font-size="10" font-style="italic" fill="var(--ext)">compartir proceso con HTTP</text>
+
+      <!-- ================= agent (simplificable) ================= -->
+      <rect x="715" y="268" width="190" height="206" rx="6" fill="none"
+            stroke="var(--ext)" stroke-width="1.8" stroke-dasharray="7 5"/>
+      <text x="810" y="296" text-anchor="middle" font-size="16" font-weight="700" fill="var(--ext)">agent</text>
+      <text x="810" y="317" text-anchor="middle" font-size="10.5" fill="var(--soft)">convierte una frase en</text>
+      <text x="810" y="332" text-anchor="middle" font-size="10.5" fill="var(--soft)">una ruta de lugares</text>
+      <rect x="742" y="343" width="136" height="18" rx="9" fill="none" stroke="var(--ext)" stroke-width="1" stroke-dasharray="4 3"/>
+      <text x="810" y="356" text-anchor="middle" font-size="9.5" font-weight="700" fill="var(--ext)">SIN RETO ASIGNADO</text>
+      <line x1="715" y1="377" x2="905" y2="377" stroke="var(--line)" stroke-width="1"/>
+      <text x="810" y="400" text-anchor="middle" font-size="11.5" font-weight="700" fill="var(--soft)">Sin estado propio</text>
+      <text x="810" y="419" text-anchor="middle" font-size="10.5" fill="var(--soft)">lee el catálogo semilla</text>
+      <text x="810" y="434" text-anchor="middle" font-size="10.5" fill="var(--soft)">y llama a la API de Claude</text>
+      <text x="810" y="453" text-anchor="middle" font-size="10" font-style="italic" fill="var(--ext)">simplificable a plantillas</text>
+      <text x="810" y="467" text-anchor="middle" font-size="10" font-style="italic" fill="var(--ext)">si el cronograma aprieta</text>
+
+      <!-- ================= BUS ================= -->
+      <line x1="150" y1="474" x2="150" y2="522" stroke="currentColor" stroke-width="1.5" marker-end="url(#ar)"/>
+      <line x1="370" y1="474" x2="370" y2="522" stroke="currentColor" stroke-width="1.5" marker-end="url(#ar)"/>
+      <line x1="590" y1="474" x2="590" y2="522" stroke="currentColor" stroke-width="1.5" marker-end="url(#ar)"/>
+      <text x="163" y="503" font-size="11" fill="var(--soft)">publica</text>
+
+      <rect x="55" y="524" width="850" height="52" rx="6"
+            fill="var(--panel)" stroke="currentColor" stroke-width="1.5"/>
+      <text x="480" y="548" text-anchor="middle" font-size="14" font-weight="700" fill="currentColor">Bus de eventos · Redis pub/sub</text>
+      <text x="480" y="566" text-anchor="middle" font-size="10.5" fill="var(--soft)">ningún servicio escribe en la base de datos de otro</text>
+
+      <polyline points="905,550 1070,550 1070,462" fill="none" stroke="currentColor"
+                stroke-width="1.5" marker-end="url(#ar)"/>
+      <text x="988" y="540" text-anchor="middle" font-size="11" fill="var(--soft)">consume</text>
+
+      <!-- ================= HARDCODEADO ================= -->
+      <rect x="55" y="614" width="1135" height="88" rx="6"
+            fill="none" stroke="var(--ext)" stroke-width="1.5" stroke-dasharray="6 4"/>
+      <text x="80" y="640" font-size="12.5" font-weight="700" fill="var(--ext)">Se apoya en datos semilla — no consume tiempo de desarrollo</text>
+      <text x="80" y="661" font-size="11" fill="var(--soft)">Autenticación y roles: 6 usuarios y 3 establecimientos con JWT fijo firmado al arrancar. Sin registro, sin recuperación de contraseña.</text>
+      <text x="80" y="679" font-size="11" fill="var(--soft)">Catálogo de establecimientos, fotos y eventos: cargados por script desde el levantamiento a pie de Zona G y Zona T.</text>
+      <text x="80" y="695" font-size="11" fill="var(--soft)">Fuera del MVP por completo: pauta, métricas del negocio, notificaciones push, reseñas, billetera de créditos.</text>
+    </svg>
+
+    <figcaption>
+      <b>La banda negra marca dónde se gasta el tiempo.</b> Esos tres servicios se construyen completos porque son los
+      únicos que no se pueden simular: <b>game</b> con su bucle a 20 Hz y su marcador concurrente, <b>promo</b> con el
+      click que compite por un cupón de stock 1, y <b>booking</b> con el click que compite por el último cupo. El
+      <b>Realtime Gateway</b> también es real: sin él no hay difusión segmentada ni recuperación tras desconexión. Todo lo
+      demás —el catálogo, las fotos, los usuarios— entra por seed, y el <b>agent</b> puede caer a plantillas sin perder
+      ningún reto.
+    </figcaption>
+  </figure>
+
+  <div class="legend">
+    <span><i class="core"></i>Se implementa completo</span>
+    <span><i class="ext"></i>Simplificable o desde seed</span>
+    <span><i class="rt"></i>Reto de tiempo real</span>
+    <span><i class="cc"></i>Reto de concurrencia</span>
+  </div>
+
+  <div class="why">
+    <div>
+      <h3>Los dos clicks que no se simulan</h3>
+      <p>Reclamar un cupón de stock 1 y agarrar el último cupo son <b>el mismo gesto sobre recursos distintos</b>, y cada
+      uno se resuelve distinto: decremento atómico en <b>promo</b>, lock optimista con versión en <b>booking</b>.</p>
+    </div>
+    <div>
+      <h3>Qué no separamos</h3>
+      <p>Reservas e inventario van juntos, y el marcador va dentro del juego. Cada par comparte transacción:
+      <b>partirlos convierte un UPDATE en un problema distribuido</b> sin ganar nada a cambio.</p>
+    </div>
+    <div>
+      <h3>Si el tiempo aprieta</h3>
+      <p><b>agent</b> se fusiona en el gateway o cae a plantillas: no implementa ningún reto. <b>game</b>, <b>promo</b>,
+      <b>booking</b> y <b>realtime</b> no admiten recorte sin perder un reto obligatorio.</p>
+    </div>
+  </div>
+
+</div>
+</body>
+</html>

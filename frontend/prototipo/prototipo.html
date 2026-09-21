@@ -1,0 +1,2141 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="Planazo — proyecto de plataforma de descubrimiento con mapa en tiempo real y agente de rutas.">
+<title>Planazo Live</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20100%20100%22%3E%3Ctext%20y%3D%22.9em%22%20font-size%3D%2290%22%3E%F0%9F%97%BA%EF%B8%8F%3C%2Ftext%3E%3C%2Fsvg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,600;12..96,800&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=DM+Mono:wght@400;500&display=swap">
+<style>*,*::before,*::after{box-sizing:border-box}html{-webkit-text-size-adjust:100%}body{margin:0}img,svg{max-width:100%}</style>
+<style>
+/* ============ TOKENS ============ */
+:root{
+  --page-bg:#E9EEEC; --page-bg-2:#DCE5E2; --page-ink:#0A1417; --page-muted:#5C7278;
+  --page-card:#FFFFFF; --page-line:#CBD8D5;
+  /* fixed dark product palette (phone screen + business console) */
+  --bg:#0A1417; --sf:#0F1E22; --sf2:#16292E; --sf3:#1D373D; --line:#22424A;
+  --tx:#ECF7F4; --mut:#7E9AA0; --mut2:#5C7A81;
+  --mango:#FF9A3C; --mint:#4FE0B0; --magenta:#FF4D7D; --violet:#9D8CFF; --blue:#4C9BFF;
+  --on-accent:#07171A;
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    --page-bg:#060E10; --page-bg-2:#0A1417; --page-ink:#ECF7F4; --page-muted:#7E9AA0;
+    --page-card:#0F1E22; --page-line:#1C363D;
+  }
+}
+:root[data-theme="dark"]{
+  --page-bg:#060E10; --page-bg-2:#0A1417; --page-ink:#ECF7F4; --page-muted:#7E9AA0;
+  --page-card:#0F1E22; --page-line:#1C363D;
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{
+  background:
+    radial-gradient(1100px 600px at 15% -5%, rgba(79,224,176,.16), transparent 60%),
+    radial-gradient(900px 700px at 92% 105%, rgba(255,154,60,.14), transparent 60%),
+    var(--page-bg);
+  color:var(--page-ink);
+  font-family:'Plus Jakarta Sans',system-ui,-apple-system,sans-serif;
+  -webkit-font-smoothing:antialiased;min-height:100vh;
+}
+@media (prefers-reduced-motion:reduce){*{animation-duration:.001ms!important;animation-iteration-count:1!important;transition-duration:.001ms!important}}
+button{font-family:inherit}
+button:focus-visible,[tabindex]:focus-visible{outline:2px solid var(--mint);outline-offset:2px;border-radius:8px}
+
+/* ============ PAGE ============ */
+.stage{max-width:1180px;margin:0 auto;padding:40px 22px 64px}
+.masthead{display:flex;align-items:flex-end;justify-content:space-between;gap:24px;margin-bottom:22px;flex-wrap:wrap}
+.eyebrow{font-family:'DM Mono',monospace;font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--page-muted);display:flex;align-items:center;gap:8px}
+.eyebrow .live{width:7px;height:7px;border-radius:50%;background:var(--mint);box-shadow:0 0 0 0 rgba(79,224,176,.6);animation:ring 2s infinite}
+@keyframes ring{70%{box-shadow:0 0 0 8px rgba(79,224,176,0)}100%{box-shadow:0 0 0 0 rgba(79,224,176,0)}}
+.masthead h1{font-family:'Bricolage Grotesque',system-ui,sans-serif;font-weight:800;font-size:clamp(36px,6vw,58px);line-height:.94;letter-spacing:-.03em;margin:8px 0 0;text-wrap:balance}
+.masthead h1 em{font-style:normal;color:var(--mango)}
+.masthead .kicker{max-width:330px;font-size:13.5px;line-height:1.55;color:var(--page-muted);margin:0}
+
+.switch{display:inline-flex;gap:4px;background:var(--page-card);border:1px solid var(--page-line);padding:4px;border-radius:14px;margin-bottom:26px}
+.switch button{
+  border:none;background:none;color:var(--page-muted);font-size:13px;font-weight:700;
+  padding:9px 16px;border-radius:10px;cursor:pointer;display:flex;align-items:center;gap:7px;transition:.18s
+}
+.switch button[aria-pressed="true"]{background:var(--page-ink);color:var(--page-bg)}
+.switch button:hover:not([aria-pressed="true"]){color:var(--page-ink)}
+
+.view{display:none}
+.view.on{display:block}
+
+.grid{display:grid;grid-template-columns:minmax(0,392px) minmax(0,1fr);gap:40px;align-items:start}
+@media (max-width:900px){.grid{grid-template-columns:1fr;justify-items:center}}
+
+/* ============ PHONE ============ */
+.phone{
+  width:min(392px,92vw);aspect-ratio:392/850;background:linear-gradient(165deg,#1a3238,#081215);
+  border-radius:50px;padding:11px;
+  box-shadow:0 40px 80px -30px rgba(4,14,16,.65),0 0 0 1px rgba(255,255,255,.06),inset 0 1px 0 rgba(255,255,255,.09);
+  position:sticky;top:24px
+}
+@media (max-width:900px){.phone{position:static}}
+.screen{position:relative;height:100%;width:100%;background:var(--bg);border-radius:39px;overflow:hidden;display:flex;flex-direction:column}
+.statusbar{flex:none;display:flex;justify-content:space-between;align-items:center;padding:15px 26px 2px;font-family:'DM Mono',monospace;font-size:12px;color:var(--tx)}
+.statusbar .rt{color:var(--mut2);letter-spacing:.06em}
+.appbar{flex:none;display:flex;align-items:center;gap:8px;padding:10px 16px 12px}
+.logo{font-family:'Bricolage Grotesque',sans-serif;font-weight:800;font-size:20px;letter-spacing:-.02em;color:var(--tx)}
+.logo i{font-style:normal;color:var(--mint)}
+.pill-live{font-family:'DM Mono',monospace;font-size:9px;letter-spacing:.07em;color:var(--mint);border:1px solid rgba(79,224,176,.35);background:rgba(79,224,176,.08);padding:3px 6px;border-radius:99px;display:flex;align-items:center;gap:4px}
+.pill-live b{width:5px;height:5px;border-radius:50%;background:var(--mint);animation:blink 1.6s infinite}
+@keyframes blink{50%{opacity:.25}}
+.appbar .spacer{flex:1}
+.wallet{
+  display:flex;align-items:center;gap:5px;background:var(--sf2);border:1px solid var(--line);
+  border-radius:11px;padding:6px 9px;font-family:'DM Mono',monospace;font-size:11.5px;color:var(--tx);
+  font-variant-numeric:tabular-nums;transition:background .4s,border-color .4s;cursor:pointer
+}
+.wallet:hover{background:var(--sf3)}
+.wallet.pop{background:rgba(79,224,176,.16);border-color:var(--mint);color:var(--mint)}
+.icon-btn{width:32px;height:32px;border-radius:11px;border:1px solid var(--line);background:var(--sf2);color:var(--tx);font-size:14px;cursor:pointer;display:flex;align-items:center;justify-content:center;flex:none}
+.icon-btn:hover{background:var(--sf3)}
+.icon-btn.hot{border-color:rgba(255,77,125,.5);background:rgba(255,77,125,.12);color:var(--magenta)}
+
+.filters{flex:none;display:flex;gap:7px;padding:0 16px 12px;overflow-x:auto;scrollbar-width:none}
+.filters::-webkit-scrollbar{display:none}
+.chip{flex:none;border:1px solid var(--line);background:var(--sf);color:var(--mut);font-size:12px;font-weight:600;padding:7px 13px;border-radius:99px;cursor:pointer;display:flex;align-items:center;gap:5px;transition:.18s}
+.chip:hover{background:var(--sf2);color:var(--tx)}
+.chip[aria-pressed="true"]{background:var(--tx);border-color:var(--tx);color:var(--on-accent)}
+.chip .n{font-family:'DM Mono',monospace;font-size:10px;opacity:.65}
+
+.panels{flex:1;position:relative;overflow:hidden}
+.panel{position:absolute;inset:0;display:none;flex-direction:column;overflow-y:auto;scrollbar-width:none}
+.panel::-webkit-scrollbar{display:none}
+.panel.on{display:flex}
+
+/* map */
+.mapwrap{flex:none;padding:0 14px}
+.mapbox{position:relative;border-radius:24px;overflow:hidden;border:1px solid var(--line);background:var(--sf)}
+.mapbox svg{display:block;width:100%;height:auto}
+.you{position:absolute;left:50%;top:52%;width:14px;height:14px;border-radius:50%;background:var(--blue);border:2.5px solid var(--bg);transform:translate(-50%,-50%);box-shadow:0 0 0 0 rgba(76,155,255,.5);animation:ring2 2.4s infinite}
+@keyframes ring2{70%{box-shadow:0 0 0 14px rgba(76,155,255,0)}100%{box-shadow:0 0 0 0 rgba(76,155,255,0)}}
+.pin{position:absolute;transform:translate(-50%,-100%);width:36px;height:36px;border-radius:50%;background:var(--pc);color:var(--pc);border:2px solid rgba(10,20,23,.5);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:16px;padding:0;box-shadow:0 8px 18px -6px rgba(0,0,0,.7);transition:transform .22s cubic-bezier(.2,.9,.3,1.3),opacity .22s}
+.pin::before{content:'';position:absolute;bottom:-7px;left:50%;transform:translateX(-50%);border-left:5px solid transparent;border-right:5px solid transparent;border-top:8px solid var(--pc)}
+.pin::after{content:'';position:absolute;inset:-5px;border-radius:50%;border:1.5px solid var(--pc);opacity:0;animation:pin-pulse 2.6s ease-out infinite}
+@keyframes pin-pulse{0%{opacity:.5;transform:scale(.7)}75%{opacity:0;transform:scale(1.55)}100%{opacity:0}}
+.pin:hover{transform:translate(-50%,-100%) scale(1.12)}
+.pin.hidden{opacity:0;pointer-events:none;transform:translate(-50%,-100%) scale(.4)}
+.pin .hot-dot{position:absolute;top:-3px;right:-3px;width:13px;height:13px;border-radius:50%;background:var(--magenta);border:2px solid var(--bg);font-size:7px;color:#fff;display:flex;align-items:center;justify-content:center;font-weight:800}
+
+.seclabel{display:flex;align-items:baseline;justify-content:space-between;padding:18px 20px 8px;font-size:15px;font-weight:800;letter-spacing:-.01em;color:var(--tx)}
+.seclabel span{font-family:'DM Mono',monospace;font-size:10.5px;color:var(--mut2);font-weight:400}
+.cards{display:flex;flex-direction:column;gap:8px;padding:0 14px 20px}
+.card{display:flex;align-items:center;gap:12px;background:var(--sf);border:1px solid var(--line);border-radius:18px;padding:11px 13px;cursor:pointer;text-align:left;width:100%;transition:.18s}
+.card:hover{background:var(--sf2);border-color:var(--sf3);transform:translateY(-1px)}
+.card.gone{display:none}
+.card .thumb{width:46px;height:46px;border-radius:14px;flex:none;display:flex;align-items:center;justify-content:center;font-size:21px;background:var(--sf2);border:1px solid var(--line)}
+.card .body{flex:1;min-width:0}
+.card .t{font-size:13.5px;font-weight:700;color:var(--tx);margin-bottom:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.card .m{font-size:11px;color:var(--mut);display:flex;gap:8px;font-variant-numeric:tabular-nums}
+.card .m b{color:var(--mango);font-weight:600}
+.badge-cupos{flex:none;font-family:'DM Mono',monospace;font-size:10px;padding:5px 8px;border-radius:9px;background:rgba(79,224,176,.1);color:var(--mint);border:1px solid rgba(79,224,176,.25);white-space:nowrap}
+.badge-cupos.low{background:rgba(255,154,60,.1);color:var(--mango);border-color:rgba(255,154,60,.3)}
+.badge-cupos.zero{background:rgba(255,77,125,.1);color:var(--magenta);border-color:rgba(255,77,125,.3)}
+.empty{padding:52px 30px;text-align:center;color:var(--mut)}
+.empty .big{font-size:34px;margin-bottom:12px}
+.empty p{font-size:13px;line-height:1.55;margin:0}
+
+/* sheet */
+.scrim{position:absolute;inset:0;background:rgba(4,10,12,.62);opacity:0;pointer-events:none;transition:opacity .26s;z-index:20}
+.scrim.on{opacity:1;pointer-events:auto}
+.sheet{position:absolute;left:0;right:0;bottom:0;z-index:21;background:var(--sf);border-radius:30px 30px 0 0;border-top:1px solid var(--line);max-height:88%;overflow-y:auto;scrollbar-width:none;transform:translateY(101%);transition:transform .34s cubic-bezier(.2,.85,.25,1)}
+.sheet::-webkit-scrollbar{display:none}
+.sheet.on{transform:translateY(0)}
+.grab{width:38px;height:4px;background:var(--line);border-radius:9px;margin:9px auto 0}
+.sheet-in{padding:6px 20px 22px}
+.hero{height:124px;border-radius:20px;margin-bottom:14px;display:flex;align-items:center;justify-content:center;font-size:48px}
+.sheet h3{font-family:'Bricolage Grotesque',sans-serif;font-weight:800;font-size:21px;letter-spacing:-.02em;margin:0 0 5px;color:var(--tx);text-wrap:balance}
+.meta{display:flex;gap:9px;align-items:center;font-size:12px;color:var(--mut);margin-bottom:11px;flex-wrap:wrap}
+.meta .star{color:var(--mango);font-weight:700}
+.desc{font-size:13px;line-height:1.6;color:var(--mut);margin:0 0 14px}
+.tagrow{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:16px}
+.tg{font-size:10.5px;padding:5px 10px;border-radius:99px;background:var(--sf2);color:var(--mut);border:1px solid var(--line)}
+.blk{background:var(--sf2);border:1px solid var(--line);border-radius:18px;padding:13px;margin-bottom:12px}
+.blk-h{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;gap:8px}
+.blk-h .lab{font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--mut)}
+.tagtech{font-family:'DM Mono',monospace;font-size:9px;letter-spacing:.04em;padding:3px 7px;border-radius:99px;border:1px solid currentColor;white-space:nowrap}
+.tagtech.rt{color:var(--mint)}
+.tagtech.cc{color:var(--mango)}
+.slots{display:flex;gap:6px;flex-wrap:wrap}
+.slot{border:1px solid var(--line);background:var(--sf);color:var(--tx);border-radius:11px;padding:8px 11px;font-size:12px;font-weight:600;cursor:pointer;font-variant-numeric:tabular-nums;display:flex;flex-direction:column;align-items:center;gap:2px;min-width:62px;transition:.16s}
+.slot small{font-family:'DM Mono',monospace;font-size:9px;color:var(--mut2);font-weight:400}
+.slot:hover:not(:disabled){border-color:var(--mint)}
+.slot[aria-pressed="true"]{background:var(--mint);border-color:var(--mint);color:var(--on-accent)}
+.slot[aria-pressed="true"] small{color:rgba(7,23,26,.7)}
+.slot:disabled{opacity:.34;cursor:not-allowed;text-decoration:line-through}
+.stepper{display:flex;align-items:center;gap:12px}
+.stepper button{width:32px;height:32px;border-radius:10px;border:1px solid var(--line);background:var(--sf);color:var(--tx);font-size:17px;cursor:pointer;line-height:1}
+.stepper button:disabled{opacity:.3;cursor:not-allowed}
+.stepper .num{font-family:'DM Mono',monospace;font-size:16px;min-width:26px;text-align:center;color:var(--tx)}
+.stepper .who{font-size:11.5px;color:var(--mut);margin-left:auto}
+.livecupos{display:flex;align-items:center;gap:9px;font-size:12px;color:var(--mut)}
+.livecupos .n{font-family:'DM Mono',monospace;font-size:19px;color:var(--tx);font-variant-numeric:tabular-nums;transition:color .3s}
+.livecupos .n.flash{color:var(--magenta)}
+.bar{height:6px;border-radius:99px;background:var(--sf3);overflow:hidden;flex:1}
+.bar i{display:block;height:100%;border-radius:99px;background:linear-gradient(90deg,var(--mint),#2fbf92);transition:width .5s}
+.cta{width:100%;border:none;border-radius:15px;padding:15px;font-size:14.5px;font-weight:800;background:var(--mint);color:var(--on-accent);cursor:pointer;letter-spacing:-.01em;display:flex;align-items:center;justify-content:center;gap:9px}
+.cta:hover:not(:disabled){filter:brightness(1.08)}
+.cta:disabled{background:var(--sf3);color:var(--mut2);cursor:not-allowed}
+.cta.ghost{background:transparent;border:1px solid var(--line);color:var(--tx)}
+.spin{width:15px;height:15px;border-radius:50%;border:2px solid rgba(7,23,26,.3);border-top-color:var(--on-accent);animation:sp .7s linear infinite}
+@keyframes sp{to{transform:rotate(360deg)}}
+.hint{font-size:11px;color:var(--mut2);text-align:center;margin:9px 0 0;line-height:1.5}
+.race{margin-bottom:12px;display:none}
+.race.on{display:block}
+.lane{display:flex;align-items:center;gap:9px;background:var(--sf);border:1px solid var(--line);border-radius:12px;padding:9px 11px;font-size:12px;color:var(--tx);margin-bottom:6px}
+.lane .d{width:7px;height:7px;border-radius:50%;flex:none;background:var(--mut2)}
+.lane.wait .d{background:var(--mango);animation:blink .8s infinite}
+.lane.ok .d{background:var(--mint)}
+.lane.no .d{background:var(--magenta)}
+.lane .s{margin-left:auto;font-family:'DM Mono',monospace;font-size:9.5px;color:var(--mut)}
+.note{font-family:'DM Mono',monospace;font-size:10px;line-height:1.55;color:var(--mut2);background:var(--bg);border-radius:11px;padding:10px 11px;margin-top:10px}
+.ticket{border-radius:18px;padding:16px;text-align:center;margin-bottom:12px;background:linear-gradient(140deg,rgba(79,224,176,.16),rgba(79,224,176,.04));border:1px solid rgba(79,224,176,.3)}
+.ticket .k{font-family:'DM Mono',monospace;font-size:23px;letter-spacing:.14em;color:var(--mint);margin:6px 0}
+.ticket .l{font-size:11px;color:var(--mut)}
+
+/* flash deal (temu) */
+.flash{position:absolute;inset:0;z-index:40;display:flex;align-items:center;justify-content:center;padding:22px;background:rgba(4,10,12,.78);opacity:0;pointer-events:none;transition:opacity .3s}
+.flash.on{opacity:1;pointer-events:auto}
+.fcard{width:100%;border-radius:28px;overflow:hidden;position:relative;background:linear-gradient(160deg,#FF4D7D 0%,#FF6B4A 48%,#FF9A3C 100%);color:#2A0913;box-shadow:0 30px 60px -20px rgba(255,77,125,.5);transform:scale(.82) translateY(14px);transition:transform .4s cubic-bezier(.2,.9,.3,1.35)}
+.flash.on .fcard{transform:scale(1) translateY(0)}
+.fcard::before{content:'';position:absolute;inset:-40% -10%;background:conic-gradient(from 0deg,transparent 0 78%,rgba(255,255,255,.28) 86%,transparent 94%);animation:sweep 3.4s linear infinite;pointer-events:none}
+@keyframes sweep{to{transform:rotate(360deg)}}
+.fc-in{position:relative;padding:20px 20px 22px}
+.f-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;gap:8px}
+.f-tag{font-family:'DM Mono',monospace;font-size:9.5px;letter-spacing:.09em;background:#2A0913;color:#FFD9A0;padding:5px 9px;border-radius:99px}
+.f-time{font-family:'DM Mono',monospace;font-size:15px;background:rgba(42,9,19,.85);color:#fff;padding:5px 11px;border-radius:10px;font-variant-numeric:tabular-nums}
+.f-off{font-family:'Bricolage Grotesque',sans-serif;font-weight:800;font-size:60px;line-height:.82;letter-spacing:-.05em}
+.f-biz{display:flex;align-items:center;gap:9px;margin:8px 0 4px;font-size:15px;font-weight:800}
+.f-biz .em{font-size:24px}
+.f-what{font-size:13px;font-weight:600;opacity:.82;margin-bottom:14px}
+.f-stock{background:rgba(42,9,19,.16);border-radius:13px;padding:10px 12px;margin-bottom:13px;display:flex;align-items:center;gap:10px;font-size:11.5px;font-weight:700}
+.f-stock .qty{font-family:'DM Mono',monospace;background:#2A0913;color:#fff;padding:3px 8px;border-radius:7px;font-size:11px}
+.f-eyes{margin-left:auto;font-variant-numeric:tabular-nums;opacity:.75;font-weight:600}
+.f-claim{width:100%;border:none;border-radius:16px;padding:16px;background:#2A0913;color:#FFE3B0;font-size:15.5px;font-weight:800;letter-spacing:.02em;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:9px}
+.f-claim:hover:not(:disabled){background:#3C0F1D}
+.f-claim:disabled{opacity:.6;cursor:not-allowed}
+.f-skip{width:100%;background:none;border:none;color:rgba(42,9,19,.62);font-size:11.5px;font-weight:700;margin-top:9px;cursor:pointer;padding:6px}
+.f-race{margin-bottom:12px;display:none}
+.f-race.on{display:block}
+.f-lane{display:flex;align-items:center;gap:8px;background:rgba(42,9,19,.14);border-radius:10px;padding:8px 10px;font-size:11.5px;font-weight:700;margin-bottom:5px}
+.f-lane .s{margin-left:auto;font-family:'DM Mono',monospace;font-size:9.5px;opacity:.7}
+.f-result{display:none;text-align:center;padding:6px 0 4px}
+.f-result.on{display:block}
+.f-result .em{font-size:44px;line-height:1}
+.f-result h4{font-family:'Bricolage Grotesque',sans-serif;font-size:22px;font-weight:800;margin:6px 0 4px;letter-spacing:-.02em}
+.f-result p{font-size:12.5px;font-weight:600;opacity:.8;margin:0 0 14px;line-height:1.5}
+.f-code{font-family:'DM Mono',monospace;background:#2A0913;color:#FFD9A0;padding:9px 14px;border-radius:11px;letter-spacing:.14em;font-size:14px;display:inline-block;margin-bottom:14px}
+.conf{position:absolute;width:7px;height:11px;border-radius:2px;pointer-events:none;animation:fall 1.5s ease-out forwards}
+@keyframes fall{0%{transform:translateY(0) rotate(0);opacity:1}100%{transform:translateY(190px) rotate(540deg);opacity:0}}
+
+/* ============ CREDIT POT MODAL ============ */
+.cmodal{position:absolute;inset:0;z-index:45;display:flex;align-items:center;justify-content:center;padding:22px;background:rgba(4,10,12,.8);opacity:0;pointer-events:none;transition:opacity .3s}
+.cmodal.on{opacity:1;pointer-events:auto}
+.ccard{width:100%;border-radius:28px;position:relative;overflow:hidden;background:linear-gradient(160deg,#5FF0BE 0%,#3FCB9B 55%,#1E9B76 100%);color:#04211A;box-shadow:0 30px 60px -20px rgba(79,224,176,.45);transform:scale(.84) translateY(12px);transition:transform .4s cubic-bezier(.2,.9,.3,1.35)}
+.cmodal.on .ccard{transform:none}
+.cc-in{padding:20px}
+.cc-tag{font-family:'DM Mono',monospace;font-size:9.5px;letter-spacing:.09em;background:#04211A;color:#9FFAD8;padding:5px 9px;border-radius:99px;display:inline-block;margin-bottom:12px}
+.cc-in h4{font-family:'Bricolage Grotesque',sans-serif;font-weight:800;font-size:26px;letter-spacing:-.03em;margin:0 0 4px;line-height:1.05}
+.cc-in .sub{font-size:12.5px;font-weight:600;opacity:.75;margin-bottom:14px;line-height:1.5}
+.pot{display:flex;align-items:center;gap:12px;background:rgba(4,33,26,.14);border-radius:15px;padding:12px 14px;margin-bottom:13px}
+.pot .amt{font-family:'Bricolage Grotesque',sans-serif;font-weight:800;font-size:30px;letter-spacing:-.03em;line-height:1}
+.pot .lbl{font-size:11px;font-weight:700;opacity:.72;line-height:1.4}
+.pot .stock{margin-left:auto;text-align:right}
+.pot .stock b{font-family:'DM Mono',monospace;font-size:22px;display:block;font-variant-numeric:tabular-nums;transition:color .3s}
+.pot .stock b.low{color:#8A1D3C}
+.pot .stock span{font-size:9.5px;font-weight:700;opacity:.7;letter-spacing:.05em}
+.cc-lanes{margin-bottom:13px;display:none}
+.cc-lanes.on{display:block}
+.cc-lane{display:flex;align-items:center;gap:8px;background:rgba(4,33,26,.13);border-radius:10px;padding:8px 10px;font-size:11.5px;font-weight:700;margin-bottom:5px}
+.cc-lane .s{margin-left:auto;font-family:'DM Mono',monospace;font-size:9.5px;opacity:.72}
+.cc-lane.ok{background:rgba(4,33,26,.3);color:#DFFFF3}
+.cc-lane.no{opacity:.5;text-decoration:line-through}
+.cc-btn{width:100%;border:none;border-radius:16px;padding:16px;background:#04211A;color:#9FFAD8;font-size:15.5px;font-weight:800;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:9px}
+.cc-btn:hover:not(:disabled){background:#0A3428}
+.cc-btn:disabled{opacity:.6;cursor:not-allowed}
+.cc-skip{width:100%;background:none;border:none;color:rgba(4,33,26,.6);font-size:11.5px;font-weight:700;margin-top:9px;cursor:pointer;padding:6px}
+.cc-note{font-family:'DM Mono',monospace;font-size:9.5px;line-height:1.55;background:rgba(4,33,26,.14);border-radius:11px;padding:10px 11px;margin-top:12px;opacity:.85}
+.cc-res{display:none;text-align:center}
+.cc-res.on{display:block}
+.cc-res .em{font-size:44px}
+.cc-res h4{font-size:23px;margin:6px 0 4px}
+.cc-res p{font-size:12.5px;font-weight:600;opacity:.8;margin:0 0 14px;line-height:1.5}
+
+/* ============ SNAKE ============ */
+.gwrap{padding:4px 16px 20px}
+.g-head{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;margin-bottom:12px}
+.g-head h3{font-family:'Bricolage Grotesque',sans-serif;font-weight:800;font-size:20px;letter-spacing:-.02em;margin:6px 0 3px;color:var(--tx)}
+.g-head p{margin:0;font-size:11.5px;color:var(--mut);line-height:1.5;max-width:200px}
+.room{text-align:right;font-family:'DM Mono',monospace;font-size:10px;color:var(--mut2);background:var(--sf);border:1px solid var(--line);border-radius:11px;padding:8px 10px;line-height:1.7;flex:none}
+.room b{color:var(--mint);font-weight:400}
+.room b.warn{color:var(--mango)}
+.board{position:relative;border-radius:20px;overflow:hidden;border:1px solid var(--line);background:#0C1B1F;margin-bottom:10px}
+.board canvas{display:block;width:100%;height:auto;touch-action:none}
+.board-ov{position:absolute;inset:0;background:rgba(8,18,21,.9);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:11px;text-align:center;padding:20px}
+.board-ov.off{display:none}
+.board-ov .t{font-family:'Bricolage Grotesque',sans-serif;font-weight:800;font-size:19px;color:var(--tx);letter-spacing:-.02em;text-wrap:balance}
+.board-ov .s{font-size:11.5px;color:var(--mut);line-height:1.5;max-width:230px}
+.board-ov .prize{font-family:'DM Mono',monospace;font-size:10px;color:var(--mint);border:1px solid rgba(79,224,176,.35);background:rgba(79,224,176,.08);padding:5px 10px;border-radius:99px}
+.board-ov button{border:none;border-radius:13px;padding:12px 24px;background:var(--mint);color:var(--on-accent);font-weight:800;font-size:13.5px;cursor:pointer}
+.board-ov button.ghost2{background:transparent;border:1px solid var(--line);color:var(--mut);font-weight:600;font-size:11.5px;padding:8px 16px}
+.podium{display:flex;flex-direction:column;gap:5px;width:100%;max-width:250px}
+.pod-row{display:flex;align-items:center;gap:8px;background:var(--sf2);border:1px solid var(--line);border-radius:10px;padding:7px 10px;font-size:11.5px;color:var(--tx)}
+.pod-row.me{border-color:var(--mint);background:rgba(79,224,176,.09)}
+.pod-row .sq{width:8px;height:8px;border-radius:3px}
+.pod-row .nm{flex:1;text-align:left;font-weight:600}
+.pod-row .sc{font-family:'DM Mono',monospace;font-variant-numeric:tabular-nums}
+.dpad{display:grid;grid-template-columns:repeat(3,42px);grid-template-rows:repeat(2,38px);gap:6px;justify-content:center;margin-bottom:12px}
+.dpad button{border:1px solid var(--line);background:var(--sf2);color:var(--tx);border-radius:12px;font-size:14px;cursor:pointer}
+.dpad button:active{background:var(--mint);color:var(--on-accent)}
+.dpad .up{grid-column:2;grid-row:1}
+.dpad .lf{grid-column:1;grid-row:2}
+.dpad .dn{grid-column:2;grid-row:2}
+.dpad .rt{grid-column:3;grid-row:2}
+.lb{background:var(--sf);border:1px solid var(--line);border-radius:18px;padding:13px 14px}
+.lb h4{margin:0 0 9px;font-size:10.5px;font-weight:700;letter-spacing:.09em;text-transform:uppercase;color:var(--mut);display:flex;justify-content:space-between}
+.lb h4 span{font-family:'DM Mono',monospace;letter-spacing:0;text-transform:none;color:var(--mut2);font-weight:400}
+.lbrow{display:flex;align-items:center;gap:9px;padding:7px 0;border-top:1px solid var(--line);font-size:12.5px;color:var(--tx)}
+.lbrow:first-of-type{border-top:none}
+.lbrow .r{font-family:'DM Mono',monospace;font-size:10.5px;color:var(--mut2);width:14px}
+.lbrow .sq{width:9px;height:9px;border-radius:3px;flex:none}
+.lbrow .nm{flex:1;font-weight:600}
+.lbrow.me .nm{color:var(--mint)}
+.lbrow .dead{font-family:'DM Mono',monospace;font-size:9px;color:var(--magenta);margin-right:6px}
+.lbrow .sc{font-family:'DM Mono',monospace;font-variant-numeric:tabular-nums;font-size:12px}
+
+/* ============ COPILOTO (chat) ============ */
+.panel.nos{overflow:hidden}
+.chat{display:flex;flex-direction:column;height:100%}
+.chat-top{flex:none;padding:12px 16px 10px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:10px}
+.chat-top .orb{width:34px;height:34px;border-radius:12px;background:linear-gradient(140deg,var(--mint),var(--violet));display:flex;align-items:center;justify-content:center;font-size:16px;flex:none}
+.chat-top .n{font-size:13.5px;font-weight:800;color:var(--tx);line-height:1.2}
+.chat-top .s{font-size:10.5px;color:var(--mut2);font-family:'DM Mono',monospace}
+.chat-log{flex:1;overflow-y:auto;scrollbar-width:none;padding:14px 16px;display:flex;flex-direction:column;gap:9px}
+.chat-log::-webkit-scrollbar{display:none}
+.msg{max-width:86%;padding:11px 13px;border-radius:17px;font-size:12.8px;line-height:1.55;animation:slidein .25s ease}
+.msg.bot{background:var(--sf2);border:1px solid var(--line);color:var(--tx);border-bottom-left-radius:6px;align-self:flex-start}
+.msg.me{background:var(--mint);color:var(--on-accent);align-self:flex-end;border-bottom-right-radius:6px;font-weight:600}
+.msg.wide{max-width:100%;width:100%;padding:0;background:none;border:none}
+.typing{display:flex;gap:4px;align-items:center;padding:13px}
+.typing i{width:6px;height:6px;border-radius:50%;background:var(--mut);display:block;animation:bob 1.1s infinite}
+.typing i:nth-child(2){animation-delay:.15s}
+.typing i:nth-child(3){animation-delay:.3s}
+@keyframes bob{0%,60%,100%{opacity:.3;transform:translateY(0)}30%{opacity:1;transform:translateY(-4px)}}
+.planc{background:var(--sf2);border:1px solid var(--line);border-radius:19px;padding:14px;width:100%}
+.planc .ph{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:11px}
+.planc .ph .t{font-size:13.5px;font-weight:800;color:var(--tx)}
+.planc .ph .c{font-family:'DM Mono',monospace;font-size:10.5px;color:var(--mint)}
+.stop{display:flex;gap:11px;align-items:flex-start;padding:9px 0;position:relative}
+.stop+.stop{border-top:1px solid var(--line)}
+.stop .hr{font-family:'DM Mono',monospace;font-size:11px;color:var(--mut);width:38px;flex:none;padding-top:3px;font-variant-numeric:tabular-nums}
+.stop .em{width:32px;height:32px;border-radius:10px;background:var(--sf);border:1px solid var(--line);display:flex;align-items:center;justify-content:center;font-size:15px;flex:none}
+.stop .i{flex:1;min-width:0}
+.stop .i .n{font-size:12.5px;font-weight:700;color:var(--tx)}
+.stop .i .w{font-size:10.5px;color:var(--mut2);line-height:1.45;margin-top:1px}
+.stop .stt{font-family:'DM Mono',monospace;font-size:9px;padding:3px 6px;border-radius:99px;border:1px solid;white-space:nowrap;align-self:center}
+.stop .stt.wait{color:var(--mut2);border-color:var(--line)}
+.stop .stt.run{color:var(--mango);border-color:rgba(255,154,60,.4);background:rgba(255,154,60,.09)}
+.stop .stt.ok{color:var(--mint);border-color:rgba(79,224,176,.4);background:rgba(79,224,176,.09)}
+.stop .stt.no{color:var(--magenta);border-color:rgba(255,77,125,.4);background:rgba(255,77,125,.09)}
+.planc .foot{display:flex;gap:8px;margin-top:12px}
+.planc .foot button{flex:1;border:none;border-radius:13px;padding:12px;font-size:12.5px;font-weight:800;cursor:pointer;background:var(--mint);color:var(--on-accent)}
+.planc .foot button.alt{background:transparent;border:1px solid var(--line);color:var(--tx);flex:0 0 auto;padding:12px 14px;font-weight:600}
+.planc .foot button:disabled{background:var(--sf3);color:var(--mut2);cursor:not-allowed}
+.planc .foot button:disabled .spin{border-color:rgba(126,154,160,.3);border-top-color:var(--mut)}
+.planc .money{display:flex;align-items:center;gap:7px;font-size:11px;color:var(--mut);margin-top:10px;padding-top:10px;border-top:1px solid var(--line)}
+.planc .money b{color:var(--tx);font-family:'DM Mono',monospace}
+.chips{display:flex;gap:6px;padding:0 14px 10px;overflow-x:auto;scrollbar-width:none;flex:none}
+.chips::-webkit-scrollbar{display:none}
+.chips button{flex:none;border:1px solid var(--line);background:var(--sf);color:var(--mut);border-radius:99px;padding:7px 12px;font-size:11.5px;cursor:pointer;font-weight:600}
+.chips button:hover{background:var(--sf2);color:var(--tx)}
+.chat-in{flex:none;display:flex;gap:8px;padding:10px 14px 14px;border-top:1px solid var(--line);background:var(--sf)}
+.chat-in input{flex:1;background:var(--sf2);border:1px solid var(--line);border-radius:13px;padding:11px 13px;color:var(--tx);font-size:12.5px;font-family:inherit;min-width:0}
+.chat-in input::placeholder{color:var(--mut2)}
+.chat-in input:focus{outline:none;border-color:var(--mint)}
+.chat-in button{width:42px;border:none;border-radius:13px;background:var(--mint);color:var(--on-accent);font-size:16px;cursor:pointer;flex:none}
+.chat-in button:disabled{background:var(--sf3);color:var(--mut2);cursor:not-allowed}
+
+/* ============ BILLETERA / TARJETA ============ */
+.wwrap{padding:14px 16px 22px}
+.vcard{
+  position:relative;aspect-ratio:1.586;border-radius:22px;overflow:hidden;padding:18px;
+  background:linear-gradient(148deg,#1B4A44 0%,#0E2A2E 46%,#091A1D 100%);
+  border:1px solid #24514A;color:#EAFBF5;
+  box-shadow:0 26px 46px -22px rgba(0,0,0,.8),inset 0 1px 0 rgba(255,255,255,.08);
+  display:flex;flex-direction:column;transition:filter .35s,opacity .35s
+}
+.vcard::before{
+  content:'';position:absolute;width:250px;height:250px;right:-70px;top:-110px;border-radius:50%;
+  background:radial-gradient(circle,rgba(79,224,176,.35),transparent 68%);pointer-events:none
+}
+.vcard::after{
+  content:'';position:absolute;inset:0;pointer-events:none;opacity:.28;
+  background:repeating-linear-gradient(115deg,transparent 0 13px,rgba(255,255,255,.045) 13px 14px)
+}
+.vcard.frozen{filter:grayscale(.85) brightness(.72)}
+.vc-top{display:flex;align-items:flex-start;justify-content:space-between;position:relative;z-index:1}
+.vc-brand{font-family:'Bricolage Grotesque',sans-serif;font-weight:800;font-size:16px;letter-spacing:-.02em}
+.vc-brand i{font-style:normal;color:var(--mint)}
+.vc-nfc{font-size:15px;opacity:.6;transform:rotate(90deg)}
+.vc-chip{
+  width:38px;height:28px;border-radius:6px;margin-top:14px;position:relative;z-index:1;
+  background:linear-gradient(140deg,#E8C98A,#B58F45);
+  box-shadow:inset 0 0 0 1px rgba(255,255,255,.25)
+}
+.vc-chip i{position:absolute;left:0;right:0;height:1px;background:rgba(60,40,10,.45)}
+.vc-chip i:nth-child(1){top:8px}.vc-chip i:nth-child(2){top:14px}.vc-chip i:nth-child(3){top:20px}
+.vc-bal{margin-top:auto;position:relative;z-index:1}
+.vc-bal .l{font-size:9.5px;letter-spacing:.13em;text-transform:uppercase;opacity:.62;margin-bottom:2px}
+.vc-bal .v{font-family:'Bricolage Grotesque',sans-serif;font-weight:800;font-size:34px;letter-spacing:-.035em;line-height:1;font-variant-numeric:tabular-nums;transition:color .4s}
+.vc-bal .v.pop{color:var(--mint)}
+.vc-foot{display:flex;align-items:flex-end;justify-content:space-between;margin-top:14px;position:relative;z-index:1;gap:10px}
+.vc-num{font-family:'DM Mono',monospace;font-size:13px;letter-spacing:.13em;opacity:.85}
+.vc-holder{font-size:9px;letter-spacing:.1em;text-transform:uppercase;opacity:.55;margin-top:5px}
+.vc-exp{font-family:'DM Mono',monospace;font-size:10px;opacity:.6;text-align:right;line-height:1.5}
+.vc-status{
+  position:absolute;left:18px;bottom:18px;z-index:2;font-family:'DM Mono',monospace;font-size:10px;
+  background:rgba(9,20,23,.8);color:var(--magenta);border:1px solid rgba(255,77,125,.4);
+  padding:5px 9px;border-radius:8px;display:none
+}
+.vcard.frozen .vc-status{display:block}
+
+.wacts{display:flex;gap:8px;margin:14px 0 16px}
+.wact{
+  flex:1;background:var(--sf);border:1px solid var(--line);border-radius:14px;padding:11px 6px;
+  color:var(--tx);font-size:10.5px;font-weight:700;cursor:pointer;
+  display:flex;flex-direction:column;align-items:center;gap:5px
+}
+.wact:hover{background:var(--sf2)}
+.wact .ic{font-size:16px}
+.wact.act{border-color:var(--mint);color:var(--mint);background:rgba(79,224,176,.08)}
+
+.seg{display:flex;gap:4px;background:var(--sf);border:1px solid var(--line);border-radius:13px;padding:4px;margin-bottom:14px}
+.seg button{flex:1;border:none;background:none;color:var(--mut);font-size:12px;font-weight:700;padding:9px;border-radius:10px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px}
+.seg button[aria-pressed="true"]{background:var(--sf3);color:var(--tx)}
+.seg button .cnt{font-family:'DM Mono',monospace;font-size:10px;background:var(--mint);color:var(--on-accent);border-radius:99px;padding:1px 6px}
+
+.wsec{display:none}
+.wsec.on{display:block}
+
+.trigger{
+  width:100%;margin-bottom:12px;border:1.5px dashed rgba(255,77,125,.45);
+  background:rgba(255,77,125,.07);color:var(--magenta);border-radius:15px;padding:13px;
+  font-size:12.5px;font-weight:800;cursor:pointer;font-family:inherit;
+  display:flex;align-items:center;justify-content:center;gap:7px;transition:.18s
+}
+.trigger:hover{background:rgba(255,77,125,.14);border-style:solid}
+.coup{
+  position:relative;background:var(--sf);border:1px solid var(--line);border-radius:16px;
+  padding:14px 16px;margin-bottom:10px;display:flex;gap:13px;align-items:center;overflow:hidden
+}
+.coup::before,.coup::after{
+  content:'';position:absolute;top:50%;width:13px;height:13px;border-radius:50%;
+  background:var(--bg);border:1px solid var(--line);transform:translateY(-50%)
+}
+.coup::before{left:-7px}
+.coup::after{right:-7px}
+.coup .em{width:42px;height:42px;border-radius:13px;background:var(--sf2);border:1px solid var(--line);display:flex;align-items:center;justify-content:center;font-size:19px;flex:none}
+.coup .i{flex:1;min-width:0}
+.coup .i .off{font-family:'Bricolage Grotesque',sans-serif;font-weight:800;font-size:19px;letter-spacing:-.02em;color:var(--magenta);line-height:1}
+.coup .i .n{font-size:12.5px;font-weight:700;color:var(--tx);margin-top:2px}
+.coup .i .e{font-size:10.5px;color:var(--mut2);font-family:'DM Mono',monospace;margin-top:2px}
+.coup .r{display:flex;flex-direction:column;align-items:flex-end;gap:6px;flex:none}
+.coup .code{font-family:'DM Mono',monospace;font-size:11px;letter-spacing:.1em;color:var(--mut)}
+.coup .use{border:none;border-radius:10px;padding:7px 12px;background:var(--mint);color:var(--on-accent);font-size:11px;font-weight:800;cursor:pointer}
+.coup .use:hover{filter:brightness(1.08)}
+.coup.used{opacity:.5}
+.coup.used .i .off{color:var(--mut)}
+.coup .usedpill{font-family:'DM Mono',monospace;font-size:9px;color:var(--mut2);border:1px solid var(--line);padding:4px 7px;border-radius:99px}
+
+.mv{display:flex;align-items:center;gap:11px;padding:11px 0;border-top:1px solid var(--line)}
+.mv:first-child{border-top:none}
+.mv .ic{width:34px;height:34px;border-radius:11px;background:var(--sf2);border:1px solid var(--line);display:flex;align-items:center;justify-content:center;font-size:14px;flex:none}
+.mv .i{flex:1;min-width:0}
+.mv .i .t{font-size:12.5px;font-weight:700;color:var(--tx)}
+.mv .i .s{font-size:10.5px;color:var(--mut2);font-family:'DM Mono',monospace}
+.mv .n{font-family:'DM Mono',monospace;font-size:13px;font-variant-numeric:tabular-nums;color:var(--mut)}
+.mv .n.in{color:var(--mint)}
+.wnote{font-family:'DM Mono',monospace;font-size:10px;line-height:1.55;color:var(--mut2);background:var(--sf);border:1px solid var(--line);border-radius:12px;padding:11px 12px;margin-top:14px}
+
+/* reservas */
+.rwrap{padding:4px 18px 20px}
+.rcard{background:var(--sf);border:1px solid var(--line);border-radius:20px;padding:15px;margin-bottom:10px;position:relative;overflow:hidden}
+.rcard::before{content:'';position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--mint)}
+.rcard .rt-t{font-size:14.5px;font-weight:800;color:var(--tx);margin-bottom:3px}
+.rcard .rt-m{font-size:11.5px;color:var(--mut);margin-bottom:10px;font-variant-numeric:tabular-nums}
+.rcard .rt-k{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.rcard .code{font-family:'DM Mono',monospace;font-size:13px;letter-spacing:.12em;color:var(--mint)}
+.rcard .st{font-family:'DM Mono',monospace;font-size:9.5px;padding:4px 8px;border-radius:99px;background:rgba(79,224,176,.1);color:var(--mint);border:1px solid rgba(79,224,176,.25)}
+.rcard.wl::before{background:var(--mango)}
+.rcard.wl .code,.rcard.wl .st{color:var(--mango)}
+.rcard.wl .st{background:rgba(255,154,60,.1);border-color:rgba(255,154,60,.3)}
+.credbox{background:linear-gradient(140deg,rgba(79,224,176,.14),rgba(79,224,176,.03));border:1px solid rgba(79,224,176,.28);border-radius:20px;padding:15px;margin-bottom:12px;display:flex;align-items:center;gap:13px}
+.credbox .amt{font-family:'Bricolage Grotesque',sans-serif;font-weight:800;font-size:26px;color:var(--mint);letter-spacing:-.02em}
+.credbox .l{font-size:11px;color:var(--mut);line-height:1.45}
+
+.tabbar{flex:none;display:flex;gap:2px;border-top:1px solid var(--line);background:var(--sf);padding:9px 8px 15px}
+.tb{flex:1;min-width:0;background:none;border:none;color:var(--mut2);display:flex;flex-direction:column;align-items:center;gap:3px;font-size:8.8px;font-weight:600;cursor:pointer;padding:4px 2px;position:relative}
+.tb .ic{font-size:17px;line-height:1}
+.tb.on{color:var(--mint)}
+.tb .dot{position:absolute;top:0;right:24%;width:7px;height:7px;border-radius:50%;background:var(--magenta);display:none}
+.tb .dot.on{display:block}
+
+/* rail */
+.rail{display:flex;flex-direction:column;gap:16px;width:100%;max-width:470px}
+.rbox{background:var(--page-card);border:1px solid var(--page-line);border-radius:22px;padding:20px}
+.rbox h2{font-family:'Bricolage Grotesque',sans-serif;font-weight:800;font-size:16px;letter-spacing:-.02em;margin:0 0 3px;color:var(--page-ink)}
+.rbox .sb{font-size:12px;color:var(--page-muted);margin:0 0 16px;line-height:1.5}
+.log{display:flex;flex-direction:column;max-height:280px;overflow-y:auto}
+.logrow{display:flex;gap:10px;align-items:baseline;padding:7px 0;border-top:1px solid var(--page-line);font-size:11.5px;animation:slidein .3s ease}
+.logrow:first-child{border-top:none}
+@keyframes slidein{from{opacity:0;transform:translateY(-5px)}to{opacity:1;transform:none}}
+.logrow .ts{font-family:'DM Mono',monospace;font-size:10px;color:var(--page-muted);flex:none;font-variant-numeric:tabular-nums}
+.logrow .ev{font-family:'DM Mono',monospace;font-size:10px;flex:none;font-weight:500}
+.logrow.rt .ev{color:#1E9B76}
+.logrow.cc .ev{color:#B85F0A}
+.logrow.wn .ev{color:#D62F5C}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]) .logrow.rt .ev{color:var(--mint)}
+  :root:not([data-theme="light"]) .logrow.cc .ev{color:var(--mango)}
+  :root:not([data-theme="light"]) .logrow.wn .ev{color:var(--magenta)}
+}
+:root[data-theme="dark"] .logrow.rt .ev{color:var(--mint)}
+:root[data-theme="dark"] .logrow.cc .ev{color:var(--mango)}
+:root[data-theme="dark"] .logrow.wn .ev{color:var(--magenta)}
+.logrow .tx{color:var(--page-ink);line-height:1.45;opacity:.85}
+.retos{display:grid;gap:12px}
+.reto{display:flex;gap:12px;align-items:flex-start}
+.reto .num{font-family:'DM Mono',monospace;font-size:10px;color:var(--page-muted);border:1px solid var(--page-line);border-radius:8px;padding:4px 6px;flex:none;margin-top:1px}
+.reto .h{font-size:12.5px;font-weight:700;color:var(--page-ink);margin-bottom:2px}
+.reto .p{font-size:11.5px;color:var(--page-muted);line-height:1.5}
+.reto .p code{font-family:'DM Mono',monospace;font-size:10.5px;background:var(--page-bg-2);padding:1px 5px;border-radius:5px}
+.howto{display:flex;flex-wrap:wrap;gap:7px;margin-top:14px}
+.howto span{font-size:11px;background:var(--page-bg-2);border:1px solid var(--page-line);padding:5px 10px;border-radius:99px;color:var(--page-muted)}
+
+/* ============ BUSINESS CONSOLE ============ */
+.win{border-radius:20px;overflow:hidden;background:var(--bg);border:1px solid var(--line);box-shadow:0 40px 80px -34px rgba(4,14,16,.6)}
+.win-bar{display:flex;align-items:center;gap:12px;padding:11px 14px;background:var(--sf);border-bottom:1px solid var(--line)}
+.win-bar .dots{display:flex;gap:6px}
+.win-bar .dots i{width:11px;height:11px;border-radius:50%;display:block}
+.urlpill{flex:1;max-width:360px;background:var(--bg);border:1px solid var(--line);border-radius:9px;padding:5px 12px;font-family:'DM Mono',monospace;font-size:11px;color:var(--mut);text-align:center}
+.win-bar .meta{margin-left:auto;font-family:'DM Mono',monospace;font-size:10.5px;color:var(--mut2);display:flex;align-items:center;gap:7px}
+.win-bar .meta b{width:6px;height:6px;border-radius:50%;background:var(--mint);animation:blink 1.6s infinite}
+.win-body{display:grid;grid-template-columns:196px minmax(0,1fr);min-height:700px}
+@media (max-width:760px){.win-body{grid-template-columns:1fr}.side{display:none!important}}
+.side{background:var(--sf);border-right:1px solid var(--line);padding:18px 14px;display:flex;flex-direction:column;gap:6px}
+.bizname{display:flex;align-items:center;gap:10px;padding:0 4px 16px;margin-bottom:6px;border-bottom:1px solid var(--line)}
+.bizname .em{width:38px;height:38px;border-radius:12px;background:var(--sf2);border:1px solid var(--line);display:flex;align-items:center;justify-content:center;font-size:19px}
+.bizname .n{font-size:13px;font-weight:800;color:var(--tx);line-height:1.2}
+.bizname .r{font-size:10px;color:var(--mut2);font-family:'DM Mono',monospace}
+.navb{display:flex;align-items:center;gap:9px;border:none;background:none;color:var(--mut);font-size:12.5px;font-weight:600;padding:9px 10px;border-radius:11px;cursor:pointer;text-align:left;width:100%}
+.navb:hover{background:var(--sf2);color:var(--tx)}
+.navb[aria-pressed="true"]{background:var(--sf3);color:var(--tx)}
+.navb .ic{font-size:14px;width:18px}
+.navb .badge{margin-left:auto;font-family:'DM Mono',monospace;font-size:9.5px;background:var(--magenta);color:#fff;border-radius:99px;padding:2px 6px}
+.side .foot{margin-top:auto;background:var(--sf2);border:1px solid var(--line);border-radius:14px;padding:12px}
+.side .foot .l{font-size:9.5px;letter-spacing:.07em;text-transform:uppercase;color:var(--mut2);margin-bottom:4px}
+.side .foot .v{font-family:'DM Mono',monospace;font-size:17px;color:var(--mint);font-variant-numeric:tabular-nums}
+.side .foot .s{font-size:10px;color:var(--mut2);margin-top:3px}
+
+.content{padding:24px 26px 30px;overflow-y:auto;max-height:840px}
+.bpanel{display:none}
+.bpanel.on{display:block}
+.bhead{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;margin-bottom:20px;flex-wrap:wrap}
+.bhead h2{font-family:'Bricolage Grotesque',sans-serif;font-weight:800;font-size:24px;letter-spacing:-.03em;margin:0 0 3px;color:var(--tx)}
+.bhead p{margin:0;font-size:12.5px;color:var(--mut);max-width:440px;line-height:1.5}
+
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:20px}
+.kpi{background:var(--sf);border:1px solid var(--line);border-radius:18px;padding:14px 15px}
+.kpi .l{font-size:10px;letter-spacing:.07em;text-transform:uppercase;color:var(--mut2);margin-bottom:6px}
+.kpi .v{font-family:'Bricolage Grotesque',sans-serif;font-weight:800;font-size:26px;letter-spacing:-.03em;color:var(--tx);font-variant-numeric:tabular-nums;line-height:1}
+.kpi .d{font-size:10.5px;font-family:'DM Mono',monospace;margin-top:5px}
+.kpi .d.up{color:var(--mint)}
+.kpi .d.dn{color:var(--magenta)}
+.kpi svg{display:block;width:100%;height:30px;margin-top:8px}
+
+.bgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(310px,1fr));gap:14px;align-items:start}
+.bbox{background:var(--sf);border:1px solid var(--line);border-radius:20px;padding:16px 17px}
+.bbox h3{font-size:13px;font-weight:800;color:var(--tx);margin:0 0 2px;letter-spacing:-.01em}
+.bbox .sb{font-size:11.5px;color:var(--mut2);margin:0 0 14px;line-height:1.45}
+.bbox-h{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;margin-bottom:12px}
+
+.feed{display:flex;flex-direction:column;max-height:330px;overflow-y:auto}
+.frow{display:flex;align-items:center;gap:10px;padding:10px 0;border-top:1px solid var(--line);animation:slidein .3s ease}
+.frow:first-child{border-top:none}
+.frow .av{width:30px;height:30px;border-radius:10px;background:var(--sf2);border:1px solid var(--line);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:800;color:var(--mut);flex:none}
+.frow .i{flex:1;min-width:0}
+.frow .i .n{font-size:12.5px;font-weight:700;color:var(--tx)}
+.frow .i .m{font-size:10.5px;color:var(--mut2);font-family:'DM Mono',monospace;font-variant-numeric:tabular-nums}
+.st-pill{font-family:'DM Mono',monospace;font-size:9px;padding:4px 7px;border-radius:99px;white-space:nowrap;border:1px solid}
+.st-pill.ok{color:var(--mint);border-color:rgba(79,224,176,.3);background:rgba(79,224,176,.09)}
+.st-pill.wl{color:var(--mango);border-color:rgba(255,154,60,.3);background:rgba(255,154,60,.09)}
+.st-pill.no{color:var(--magenta);border-color:rgba(255,77,125,.3);background:rgba(255,77,125,.09)}
+.st-pill.pe{color:var(--blue);border-color:rgba(76,155,255,.3);background:rgba(76,155,255,.09)}
+.mini{border:1px solid var(--line);background:var(--sf2);color:var(--tx);border-radius:9px;padding:5px 9px;font-size:11px;font-weight:700;cursor:pointer}
+.mini:hover{background:var(--sf3)}
+.mini.go{background:var(--mint);border-color:var(--mint);color:var(--on-accent)}
+.mini.no{color:var(--magenta)}
+
+.invrow{display:flex;align-items:center;gap:11px;padding:11px 0;border-top:1px solid var(--line)}
+.invrow:first-of-type{border-top:none}
+.invrow .h{font-family:'DM Mono',monospace;font-size:13px;color:var(--tx);width:52px;font-variant-numeric:tabular-nums}
+.invrow .ver{font-family:'DM Mono',monospace;font-size:9.5px;color:var(--mut2);background:var(--bg);border-radius:6px;padding:3px 6px}
+.invrow .track{flex:1;height:6px;border-radius:99px;background:var(--sf3);overflow:hidden;min-width:40px}
+.invrow .track i{display:block;height:100%;background:linear-gradient(90deg,var(--mint),#2fbf92);transition:width .4s}
+.invrow .ctr{display:flex;align-items:center;gap:6px}
+.invrow .ctr button{width:26px;height:26px;border-radius:8px;border:1px solid var(--line);background:var(--sf2);color:var(--tx);cursor:pointer;font-size:14px;line-height:1}
+.invrow .ctr .n{font-family:'DM Mono',monospace;font-size:13px;width:22px;text-align:center;color:var(--tx)}
+.conflict{background:rgba(255,77,125,.09);border:1px solid rgba(255,77,125,.3);border-radius:12px;padding:11px;margin-top:12px;display:none}
+.conflict.on{display:block}
+.conflict .t{font-size:11.5px;font-weight:800;color:var(--magenta);margin-bottom:4px}
+.conflict .p{font-size:11px;color:var(--mut);line-height:1.5;margin-bottom:9px}
+
+.bidrow{display:flex;align-items:center;gap:10px;padding:9px 0;border-top:1px solid var(--line);font-size:12px;color:var(--tx)}
+.bidrow:first-of-type{border-top:none}
+.bidrow.me{color:var(--mint);font-weight:700}
+.bidrow .r{font-family:'DM Mono',monospace;font-size:10px;color:var(--mut2);width:14px}
+.bidrow .n{flex:1}
+.bidrow .track{width:78px;height:5px;border-radius:99px;background:var(--sf3);overflow:hidden}
+.bidrow .track i{display:block;height:100%;background:var(--mango);transition:width .5s}
+.bidrow.me .track i{background:var(--mint)}
+.bidrow .v{font-family:'DM Mono',monospace;font-size:11.5px;font-variant-numeric:tabular-nums;width:56px;text-align:right}
+.bidctl{display:flex;align-items:center;gap:10px;margin-top:13px;background:var(--sf2);border:1px solid var(--line);border-radius:13px;padding:11px 12px}
+.bidctl .l{font-size:11px;color:var(--mut);flex:1;line-height:1.4}
+.bidctl button{width:30px;height:30px;border-radius:9px;border:1px solid var(--line);background:var(--sf);color:var(--tx);cursor:pointer;font-size:15px}
+.bidctl .n{font-family:'DM Mono',monospace;font-size:14px;color:var(--tx);width:58px;text-align:center;font-variant-numeric:tabular-nums}
+.status-line{margin-top:11px;font-size:11.5px;font-weight:700;display:flex;align-items:center;gap:7px}
+.status-line.win{color:var(--mint)}
+.status-line.lose{color:var(--mango)}
+
+.optrow{display:flex;gap:7px;flex-wrap:wrap;margin-bottom:13px}
+.opt{border:1px solid var(--line);background:var(--sf2);color:var(--tx);border-radius:11px;padding:8px 13px;font-size:12px;font-weight:700;cursor:pointer;font-variant-numeric:tabular-nums}
+.opt[aria-pressed="true"]{background:var(--mango);border-color:var(--mango);color:var(--on-accent)}
+.optlbl{font-size:10px;letter-spacing:.07em;text-transform:uppercase;color:var(--mut2);margin-bottom:7px}
+.launch{width:100%;border:none;border-radius:14px;padding:14px;font-size:14px;font-weight:800;background:var(--magenta);color:#fff;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px}
+.launch:hover:not(:disabled){filter:brightness(1.08)}
+.launch:disabled{background:var(--sf3);color:var(--mut2);cursor:not-allowed}
+.claimfeed{margin-top:14px;display:none}
+.claimfeed.on{display:block}
+.cfrow{display:flex;align-items:center;gap:9px;padding:7px 0;border-top:1px solid var(--line);font-size:11.5px;color:var(--tx);animation:slidein .25s ease}
+.cfrow:first-child{border-top:none}
+.cfrow .t{margin-left:auto;font-family:'DM Mono',monospace;font-size:9.5px;color:var(--mut2)}
+.summary{background:var(--sf2);border:1px solid var(--line);border-radius:13px;padding:12px;margin-top:12px;display:grid;grid-template-columns:repeat(3,1fr);gap:10px;text-align:center}
+.summary .v{font-family:'DM Mono',monospace;font-size:19px;color:var(--tx);font-variant-numeric:tabular-nums}
+.summary .l{font-size:9.5px;color:var(--mut2);letter-spacing:.05em;text-transform:uppercase;margin-top:2px}
+.summary div:nth-child(2) .v{color:var(--mint)}
+.summary div:nth-child(3) .v{color:var(--magenta)}
+.toastbiz{
+  position:fixed;left:50%;bottom:28px;transform:translate(-50%,140%);z-index:80;
+  background:var(--sf2);border:1px solid var(--mint);color:var(--tx);border-radius:14px;
+  padding:13px 18px;font-size:12.5px;font-weight:600;box-shadow:0 20px 40px -16px rgba(0,0,0,.6);
+  transition:transform .4s cubic-bezier(.2,.85,.25,1);max-width:90vw
+}
+.toastbiz.on{transform:translate(-50%,0)}
+</style>
+</head>
+<body>
+<div class="stage">
+
+  <div class="masthead">
+    <div>
+      <div class="eyebrow"><span class="live"></span>Mockup funcional · v3</div>
+      <h1>Planazo <em>Live</em></h1>
+    </div>
+    <p class="kicker">El mapa de planes de tu ciudad. Filtra, reserva antes de que se agote, pelea por los flash deals y gana créditos jugando con la sala.</p>
+  </div>
+
+  <div class="switch" role="group" aria-label="Cambiar de interfaz">
+    <button id="swUser" aria-pressed="true">📱 App del usuario</button>
+    <button id="swBiz" aria-pressed="false">🏪 Panel del negocio</button>
+  </div>
+
+  <!-- ==================== VISTA USUARIO ==================== -->
+  <div class="view on" id="viewUser">
+  <div class="grid">
+
+    <div class="phone">
+      <div class="screen">
+
+        <div class="statusbar"><span id="clock">9:41</span><span class="rt">ws: conectado</span></div>
+
+        <div class="appbar">
+          <div class="logo">Plan<i>azo</i></div>
+          <div class="pill-live"><b></b>LIVE</div>
+          <div class="spacer"></div>
+          <button class="wallet" id="wallet" title="Ver mi billetera">💰 <span id="walletN">0</span></button>
+          <button class="icon-btn hot" id="btnFlash" title="Simular flash deal">⚡</button>
+        </div>
+
+        <div class="filters" id="filters"></div>
+
+        <div class="panels">
+
+          <section class="panel on" id="p-mapa">
+            <div class="mapwrap">
+              <div class="mapbox" id="mapbox">
+                <svg viewBox="0 0 340 236" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                  <rect width="340" height="236" fill="#0F1E22"/>
+                  <path d="M-10 176 C 60 150, 90 210, 150 200 S 250 236, 350 214 L350 246 L-10 246Z" fill="#12333B"/>
+                  <rect x="14" y="18" width="78" height="54" rx="12" fill="#12292C"/>
+                  <rect x="232" y="126" width="94" height="62" rx="14" fill="#12292C"/>
+                  <g stroke="#1A343A" stroke-width="9" stroke-linecap="round" fill="none">
+                    <path d="M-6 96 H346"/><path d="M118 -6 V 200"/><path d="M244 -6 V 132"/><path d="M-6 158 H 130"/>
+                  </g>
+                  <g stroke="#162E33" stroke-width="4" stroke-linecap="round" fill="none">
+                    <path d="M60 96 V 236"/><path d="M118 44 H 340"/><path d="M180 96 V 236"/><path d="M244 176 H 340"/><path d="M0 44 H 118"/>
+                  </g>
+                </svg>
+                <div class="you" title="Tu ubicación"></div>
+              </div>
+            </div>
+            <div class="seclabel">Planes cerca <span id="countLabel">6 resultados</span></div>
+            <div class="cards" id="cards"></div>
+          </section>
+
+          <section class="panel" id="p-juego">
+            <div class="gwrap">
+              <div class="g-head">
+                <div>
+                  <span class="tagtech rt">📡 broadcast 20 tps</span>
+                  <h3>Snake de Sala</h3>
+                  <p>Gana la ronda y clasificas al bote de créditos.</p>
+                </div>
+                <div class="room">sala <b>#A7-CENTRO</b><br>ronda <b class="warn" id="roundT">01:00</b><br>ping <b id="ping">42ms</b></div>
+              </div>
+
+              <div class="board">
+                <canvas id="snake" width="660" height="660"></canvas>
+                <div class="board-ov" id="gameOv">
+                  <div class="t">Sala #A7-Centro</div>
+                  <div class="s">Ronda de 60 s con 3 jugadores más. Flechas, WASD o el pad de abajo.</div>
+                  <div class="prize">🏆 el #1 compite por créditos</div>
+                  <button id="gameStart">Entrar a la sala</button>
+                </div>
+              </div>
+
+              <div class="dpad">
+                <button class="up" data-dir="up" aria-label="Arriba">▲</button>
+                <button class="lf" data-dir="left" aria-label="Izquierda">◀</button>
+                <button class="dn" data-dir="down" aria-label="Abajo">▼</button>
+                <button class="rt" data-dir="right" aria-label="Derecha">▶</button>
+              </div>
+
+              <div class="lb">
+                <h4>Marcador en vivo <span id="lbRound">ronda #128</span></h4>
+                <div id="lbList"></div>
+              </div>
+            </div>
+          </section>
+
+          <section class="panel nos" id="p-copi">
+            <div class="chat">
+              <div class="chat-top">
+                <span class="orb">✨</span>
+                <div>
+                  <div class="n">Copiloto de planes</div>
+                  <div class="s">lee el mapa en vivo · reserva por ti</div>
+                </div>
+              </div>
+              <div class="chat-log" id="chatLog"></div>
+              <div class="chips" id="chatChips"></div>
+              <form class="chat-in" id="chatForm">
+                <input id="chatInput" placeholder="Cuéntame tu plan…" autocomplete="off">
+                <button type="submit" aria-label="Enviar">➤</button>
+              </form>
+            </div>
+          </section>
+
+          <section class="panel" id="p-wal">
+            <div class="wwrap">
+              <div class="vcard" id="vcard">
+                <div class="vc-top">
+                  <span class="vc-brand">plan<i>azo</i></span>
+                  <span class="vc-nfc">)))</span>
+                </div>
+                <div class="vc-chip"><i></i><i></i><i></i></div>
+                <div class="vc-bal">
+                  <div class="l">Saldo en créditos</div>
+                  <div class="v" id="vcBal">$0</div>
+                </div>
+                <div class="vc-foot">
+                  <div>
+                    <div class="vc-num">•••• •••• •••• 4821</div>
+                    <div class="vc-holder">Juan D. Melo</div>
+                  </div>
+                  <div class="vc-exp">VALIDA<br>12 / 27</div>
+                </div>
+                <span class="vc-status">❄ CONGELADA</span>
+              </div>
+
+              <div class="wacts">
+                <button class="wact" id="wFreeze"><span class="ic">❄️</span>Congelar</button>
+                <button class="wact" id="wPin"><span class="ic">🔑</span>Ver PIN</button>
+                <button class="wact" id="wAdd"><span class="ic">📲</span>Añadir a wallet</button>
+              </div>
+
+              <div class="seg">
+                <button id="segCoup" aria-pressed="true">🎟️ Cupones <span class="cnt" id="coupN">0</span></button>
+                <button id="segMov" aria-pressed="false">📄 Movimientos</button>
+              </div>
+
+              <div class="wsec on" id="secCoup">
+                <button class="trigger" id="btnTrigger">⚡ Disparar un flash deal ahora</button>
+                <div id="coupList"></div>
+              </div>
+              <div class="wsec" id="secMov"><div id="movList"></div></div>
+
+              <div class="wnote">Los créditos se descuentan solos al reservar dentro de la app, y la tarjeta virtual funciona en los comercios aliados del mapa. El saldo vive en un único contador con escritura atómica: nunca queda en negativo ni se cobra dos veces.</div>
+            </div>
+          </section>
+
+          <section class="panel" id="p-res">
+            <div class="rwrap">
+              <div class="credbox">
+                <div class="amt" id="credAmt">$0</div>
+                <div class="l">Créditos Planazo<br>se descuentan solos en tu próxima reserva</div>
+              </div>
+              <div class="seclabel" style="padding:6px 2px 10px">Mis reservas <span id="resCount">0 activas</span></div>
+              <div id="resList"></div>
+            </div>
+          </section>
+
+          <div class="scrim" id="scrim"></div>
+
+          <div class="sheet" id="sheet">
+            <div class="grab"></div>
+            <div class="sheet-in" id="sheetIn"></div>
+          </div>
+
+          <!-- FLASH DEAL -->
+          <div class="flash" id="flash">
+            <div class="fcard">
+              <div class="fc-in">
+                <div class="f-top">
+                  <span class="f-tag" id="fTag">⚡ FLASH · 1 SOLO CUPÓN</span>
+                  <span class="f-time" id="fTime">00:15</span>
+                </div>
+                <div id="fMain">
+                  <div class="f-off" id="fOff">-70%</div>
+                  <div class="f-biz"><span class="em" id="fEm">☕</span><span id="fName">Café Rota</span></div>
+                  <div class="f-what" id="fWhat">en tu próxima visita, hoy</div>
+                  <div class="f-stock"><span class="qty" id="fQty">1 / 1</span> disponible<span class="f-eyes" id="fEyes">👀 23 mirando</span></div>
+                  <div class="f-race" id="fRace"></div>
+                  <button class="f-claim" id="fClaim">RECLAMAR AHORA</button>
+                  <button class="f-skip" id="fSkip">No, gracias</button>
+                </div>
+                <div class="f-result" id="fResult"></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- CREDIT POT -->
+          <div class="cmodal" id="cmodal">
+            <div class="ccard">
+              <div class="cc-in">
+                <div id="ccMain">
+                  <span class="cc-tag">🏆 GANASTE LA RONDA #128</span>
+                  <h4>Bote de créditos</h4>
+                  <div class="sub">Los ganadores de las 6 salas de la zona compiten por el mismo bote. Se reparte por orden de llegada.</div>
+                  <div class="pot">
+                    <div>
+                      <div class="amt">$2.000</div>
+                      <div class="lbl">por ganador</div>
+                    </div>
+                    <div class="stock"><b id="ccStock">3</b><span>DISPONIBLES</span></div>
+                  </div>
+                  <div class="cc-lanes" id="ccLanes"></div>
+                  <button class="cc-btn" id="ccClaim">RECLAMAR MI CRÉDITO</button>
+                  <button class="cc-skip" id="ccSkip">Ahora no</button>
+                  <div class="cc-note">Decremento atómico sobre un bote finito. Sin lock, 6 ganadores simultáneos cobrarían 6 créditos de un bote de 3 — la plataforma pagaría el doble.</div>
+                </div>
+                <div class="cc-res" id="ccRes"></div>
+              </div>
+            </div>
+          </div>
+
+        </div>
+
+        <div class="tabbar">
+          <button class="tb on" data-tab="mapa"><span class="ic">🗺️</span>Mapa</button>
+          <button class="tb" data-tab="copi"><span class="ic">✨</span>Copiloto</button>
+          <button class="tb" data-tab="juego"><span class="ic">🎮</span>Juegos</button>
+          <button class="tb" data-tab="res"><span class="ic">🎟️</span>Reservas<span class="dot" id="resDot"></span></button>
+          <button class="tb" data-tab="wal"><span class="ic">💳</span>Billetera<span class="dot" id="walDot"></span></button>
+        </div>
+
+      </div>
+    </div>
+
+    <div class="rail">
+      <div class="rbox">
+        <h2>Registro de eventos</h2>
+        <p class="sb">Todo lo que pasa en la app emite un evento al log — es lo que permite reconstruir el estado tras una desconexión, y lo que ves llenarse aquí mientras usas el mockup.</p>
+        <div class="log" id="log"></div>
+      </div>
+      <div class="rbox">
+        <h2>Qué demuestra cada parte</h2>
+        <p class="sb">Cada interacción del prototipo dramatiza un reto técnico concreto del proyecto.</p>
+        <div class="retos">
+          <div class="reto"><span class="num">RT</span><div><div class="h">Mapa y cupos en vivo</div><div class="p">Los cupos bajan solos porque otros reservan. Si el horario que estás mirando se llena, la ficha reacciona sin recargar.</div></div></div>
+          <div class="reto"><span class="num">CC</span><div><div class="h">Reserva sin sobreventa</div><div class="p">Cada reserva lleva la versión del cupo que leíste. Solo la primera escritura contra <code>v_n</code> gana; la otra va a lista de espera.</div></div></div>
+          <div class="reto"><span class="num">CC</span><div><div class="h">Flash deal de stock finito</div><div class="p">Decenas de personas tocan "reclamar" en el mismo segundo sobre un recurso de cantidad 1. Lock exclusivo, no "el que llegue".</div></div></div>
+          <div class="reto"><span class="num">CC</span><div><div class="h">Bote de créditos del torneo</div><div class="p">Es dinero real: 6 ganadores de sala compiten por 3 créditos. Un fallo aquí no molesta al usuario, le cuesta plata a la plataforma.</div></div></div>
+          <div class="reto"><span class="num">CC</span><div><div class="h">Copiloto que reserva solo</div><div class="p">Un plan del día son 3 reservas encadenadas: es una <b>saga</b>. Si una parada falla a mitad de camino, sustituye esa y conserva las ya confirmadas en vez de tumbar todo.</div></div></div>
+          <div class="reto"><span class="num">RT</span><div><div class="h">Snake multijugador</div><div class="p">Estado compartido a 20 ticks/s entre 4 jugadores, con marcador difundido a toda la sala.</div></div></div>
+        </div>
+        <div class="howto"><span>Toca un pin →</span><span>reserva un cupo</span><span>pídele un plan al Copiloto ✨</span><span>pulsa ⚡</span><span>gana una ronda de Snake</span></div>
+      </div>
+    </div>
+
+  </div>
+  </div>
+
+  <!-- ==================== VISTA NEGOCIO ==================== -->
+  <div class="view" id="viewBiz">
+    <div class="win">
+      <div class="win-bar">
+        <span class="dots"><i style="background:#FF5F57"></i><i style="background:#FEBC2E"></i><i style="background:#28C840"></i></span>
+        <span class="urlpill">panel.planazo.app/negocio/el-zaguan</span>
+        <span class="meta"><b></b>websocket activo · 3 dispositivos del staff</span>
+      </div>
+
+      <div class="win-body">
+        <aside class="side">
+          <div class="bizname">
+            <span class="em">🍸</span>
+            <div><div class="n">Bar El Zaguán</div><div class="r">★ 4.4 · 167 reseñas</div></div>
+          </div>
+          <button class="navb" data-bp="resumen" aria-pressed="true"><span class="ic">📊</span>Resumen</button>
+          <button class="navb" data-bp="cupos" aria-pressed="false"><span class="ic">🪑</span>Cupos y pauta</button>
+          <button class="navb" data-bp="deals" aria-pressed="false"><span class="ic">⚡</span>Flash deals</button>
+          <div class="foot">
+            <div class="l">Saldo de pauta</div>
+            <div class="v" id="bizSaldo">$146.200</div>
+            <div class="s">alcanza ~9 días al ritmo actual</div>
+          </div>
+        </aside>
+
+        <div class="content">
+
+          <!-- RESUMEN -->
+          <section class="bpanel on" id="bp-resumen">
+            <div class="bhead">
+              <div>
+                <h2>Hoy, viernes</h2>
+                <p>Todo lo que ves aquí llega por el mismo canal en tiempo real que usa la app del cliente.</p>
+              </div>
+              <span class="tagtech rt">📡 sincronizado hace 2 s</span>
+            </div>
+
+            <div class="kpis" id="kpis"></div>
+
+            <div class="bgrid">
+              <div class="bbox">
+                <div class="bbox-h">
+                  <div><h3>Reservas entrantes</h3><p class="sb">Llegan solas mientras el panel está abierto.</p></div>
+                  <span class="tagtech rt">live</span>
+                </div>
+                <div class="feed" id="bizFeed"></div>
+              </div>
+
+              <div class="bbox">
+                <div class="bbox-h">
+                  <div><h3>Registro del negocio</h3><p class="sb">Mismo event log, filtrado a este comercio.</p></div>
+                  <span class="tagtech cc">append-only</span>
+                </div>
+                <div class="log" id="bizLog" style="max-height:330px"></div>
+              </div>
+            </div>
+          </section>
+
+          <!-- CUPOS Y PAUTA -->
+          <section class="bpanel" id="bp-cupos">
+            <div class="bhead">
+              <div>
+                <h2>Cupos y pauta</h2>
+                <p>El inventario lo editan tres dispositivos del staff a la vez. La puja por aparecer en el mapa la disputan los negocios de la zona.</p>
+              </div>
+            </div>
+
+            <div class="bgrid">
+              <div class="bbox">
+                <div class="bbox-h">
+                  <div><h3>Control de cupos</h3><p class="sb">Cada cambio incrementa la versión del recurso.</p></div>
+                  <span class="tagtech cc">🔒 versionado</span>
+                </div>
+                <div id="invList"></div>
+                <div class="conflict" id="conflictBox">
+                  <div class="t">⚠ Conflicto de versión</div>
+                  <div class="p" id="conflictTx"></div>
+                  <button class="mini go" id="conflictFix">Recargar y reintentar</button>
+                </div>
+              </div>
+
+              <div class="bbox">
+                <div class="bbox-h">
+                  <div><h3>Puja por el mapa</h3><p class="sb">Zona Centro · categoría Bares. Se recalcula cada 3 s.</p></div>
+                  <span class="tagtech cc">🔒 subasta</span>
+                </div>
+                <div id="bidList"></div>
+                <div class="bidctl">
+                  <span class="l">Tu puja<br>por 1.000 impresiones</span>
+                  <button id="bidMinus">−</button>
+                  <span class="n" id="bidN">$380</span>
+                  <button id="bidPlus">+</button>
+                </div>
+                <div class="status-line" id="bidStatus"></div>
+              </div>
+            </div>
+          </section>
+
+          <!-- FLASH DEALS -->
+          <section class="bpanel" id="bp-deals">
+            <div class="bhead">
+              <div>
+                <h2>Flash deals</h2>
+                <p>Lanza un cupón con stock limitado a los usuarios que están viendo el mapa ahora mismo. Cuando lo lances, cambia a la app del usuario para verlo llegar.</p>
+              </div>
+            </div>
+
+            <div class="bgrid">
+              <div class="bbox">
+                <div class="bbox-h"><div><h3>Nuevo cupón</h3><p class="sb">1.240 usuarios activos en tu zona.</p></div></div>
+
+                <div class="optlbl">Descuento</div>
+                <div class="optrow" id="optOff"></div>
+                <div class="optlbl">Stock disponible</div>
+                <div class="optrow" id="optStock"></div>
+                <div class="optlbl">Duración</div>
+                <div class="optrow" id="optDur"></div>
+
+                <button class="launch" id="btnLaunch">⚡ Lanzar a 1.240 usuarios</button>
+              </div>
+
+              <div class="bbox">
+                <div class="bbox-h">
+                  <div><h3>Solicitudes en vivo</h3><p class="sb">Cada línea es un intento de reclamar el mismo cupón.</p></div>
+                  <span class="tagtech cc">🔒 lock</span>
+                </div>
+                <div id="claimEmpty" class="empty" style="padding:34px 10px"><div class="big">⚡</div><p>Lanza un cupón para ver<br>cómo se resuelven los choques.</p></div>
+                <div class="claimfeed" id="claimFeed"></div>
+              </div>
+            </div>
+          </section>
+
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<div class="toastbiz" id="toastBiz"></div>
+
+<script>
+(function(){
+"use strict";
+
+/* ---------- helpers ---------- */
+function rnd(a){return a[Math.floor(Math.random()*a.length)];}
+function money(n){return '$'+n.toLocaleString('es-CO');}
+function stamp(){var d=new Date();return String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0')+':'+String(d.getSeconds()).padStart(2,'0');}
+var NAMES=['Camilo R.','Vale G.','Sara M.','Andrés P.','Luli T.','Nico B.','Fer M.','Juli C.','Dani O.'];
+
+function tickClock(){var d=new Date(),h=d.getHours()%12||12,m=String(d.getMinutes()).padStart(2,'0');document.getElementById('clock').textContent=h+':'+m;}
+tickClock();setInterval(tickClock,20000);
+
+/* ---------- logs ---------- */
+var logEl=document.getElementById('log'),bizLogEl=document.getElementById('bizLog');
+function mkRow(kind,ev,tx){
+  var r=document.createElement('div');
+  r.className='logrow '+kind;
+  r.innerHTML='<span class="ts">'+stamp()+'</span><span class="ev">'+ev+'</span><span class="tx">'+tx+'</span>';
+  return r;
+}
+function log(kind,ev,tx){
+  logEl.insertBefore(mkRow(kind,ev,tx),logEl.firstChild);
+  while(logEl.children.length>26)logEl.removeChild(logEl.lastChild);
+}
+function blog(kind,ev,tx){
+  bizLogEl.insertBefore(mkRow(kind,ev,tx),bizLogEl.firstChild);
+  while(bizLogEl.children.length>24)bizLogEl.removeChild(bizLogEl.lastChild);
+}
+log('rt','WS.OPEN','Canal abierto · zona centro');
+blog('rt','WS.OPEN','Panel conectado · 3 dispositivos');
+
+/* ---------- view switch ---------- */
+var swUser=document.getElementById('swUser'),swBiz=document.getElementById('swBiz');
+var vUser=document.getElementById('viewUser'),vBiz=document.getElementById('viewBiz');
+var pendingDeal=null;
+swUser.addEventListener('click',function(){
+  swUser.setAttribute('aria-pressed','true');swBiz.setAttribute('aria-pressed','false');
+  vUser.classList.add('on');vBiz.classList.remove('on');
+  if(pendingDeal){var d=pendingDeal;pendingDeal=null;setTimeout(function(){openFlash(d);},450);}
+});
+swBiz.addEventListener('click',function(){
+  swBiz.setAttribute('aria-pressed','true');swUser.setAttribute('aria-pressed','false');
+  vBiz.classList.add('on');vUser.classList.remove('on');
+});
+
+var toastBiz=document.getElementById('toastBiz'),toastT=null;
+function toast(msg){
+  toastBiz.textContent=msg;toastBiz.classList.add('on');
+  clearTimeout(toastT);toastT=setTimeout(function(){toastBiz.classList.remove('on');},4200);
+}
+
+/* ---------- wallet / credits ---------- */
+var credits=1000;
+var walletN=document.getElementById('walletN'),walletEl=document.getElementById('wallet'),credAmt=document.getElementById('credAmt');
+var vcBal=document.getElementById('vcBal'),coupList=document.getElementById('coupList'),movList=document.getElementById('movList');
+var COUPONS=[
+  {em:'☕',n:'Café Rota',off:'-70%',code:'KDR-482',exp:'Vence hoy 23:59',used:false},
+  {em:'🍜',n:'Fideos de la Nona',off:'-50%',code:'PLM-119',exp:'Usado el 19 ago',used:true}
+];
+var MOVES=[{ic:'🎁',t:'Bono de bienvenida',s:'hace 2 días',n:1000,inn:true}];
+
+function syncBalance(){
+  walletN.textContent=credits.toLocaleString('es-CO');
+  credAmt.textContent=money(credits);
+  vcBal.textContent=money(credits);
+}
+function addMove(ic,t,n,inn){
+  MOVES.unshift({ic:ic,t:t,s:'ahora mismo',n:n,inn:inn});
+  paintMoves();
+}
+function addCredits(n,label){
+  credits+=n;syncBalance();
+  addMove('🏆',label||'Bote de créditos del torneo',n,true);
+  walletEl.classList.add('pop');vcBal.classList.add('pop');
+  setTimeout(function(){walletEl.classList.remove('pop');vcBal.classList.remove('pop');},1600);
+  document.getElementById('walDot').classList.add('on');
+}
+function spendCredits(n,label){
+  credits=Math.max(0,credits-n);syncBalance();
+  addMove('🎟️',label,n,false);
+}
+function addCoupon(c){
+  COUPONS.unshift(c);paintCoupons();
+  document.getElementById('walDot').classList.add('on');
+}
+function paintCoupons(){
+  document.getElementById('coupN').textContent=COUPONS.filter(function(c){return !c.used;}).length;
+  if(!COUPONS.length){
+    coupList.innerHTML='<div class="empty"><div class="big">🎟️</div><p>Sin cupones todavía.<br>Gana un flash deal con el botón ⚡.</p></div>';
+    return;
+  }
+  coupList.innerHTML=COUPONS.map(function(c,i){
+    return '<div class="coup'+(c.used?' used':'')+'"><span class="em">'+c.em+'</span>'+
+      '<span class="i"><span class="off">'+c.off+'</span><span class="n">'+c.n+'</span><span class="e">'+c.exp+'</span></span>'+
+      '<span class="r"><span class="code">'+c.code+'</span>'+
+      (c.used?'<span class="usedpill">USADO</span>':'<button class="use" data-i="'+i+'">Usar</button>')+
+      '</span></div>';
+  }).join('');
+  coupList.querySelectorAll('.use').forEach(function(b){
+    b.addEventListener('click',function(){
+      var c=COUPONS[+b.dataset.i];
+      c.used=true;c.exp='Usado ahora mismo';
+      paintCoupons();
+      log('cc','COUPON.REDEEM',c.code+' · '+c.n+' · marcado como usado');
+    });
+  });
+}
+function paintMoves(){
+  movList.innerHTML=MOVES.map(function(m){
+    return '<div class="mv"><span class="ic">'+m.ic+'</span>'+
+      '<span class="i"><span class="t">'+m.t+'</span><span class="s">'+m.s+'</span></span>'+
+      '<span class="n'+(m.inn?' in':'')+'">'+(m.inn?'+':'−')+money(m.n)+'</span></div>';
+  }).join('');
+}
+syncBalance();paintCoupons();paintMoves();
+
+document.getElementById('wallet').addEventListener('click',function(){
+  document.querySelector('.tb[data-tab="wal"]').click();
+});
+document.getElementById('btnTrigger').addEventListener('click',function(){openFlash();});
+var segCoup=document.getElementById('segCoup'),segMov=document.getElementById('segMov');
+var secCoup=document.getElementById('secCoup'),secMov=document.getElementById('secMov');
+segCoup.addEventListener('click',function(){
+  segCoup.setAttribute('aria-pressed','true');segMov.setAttribute('aria-pressed','false');
+  secCoup.classList.add('on');secMov.classList.remove('on');
+});
+segMov.addEventListener('click',function(){
+  segMov.setAttribute('aria-pressed','true');segCoup.setAttribute('aria-pressed','false');
+  secMov.classList.add('on');secCoup.classList.remove('on');
+});
+var vcard=document.getElementById('vcard'),frozen=false;
+document.getElementById('wFreeze').addEventListener('click',function(){
+  frozen=!frozen;
+  vcard.classList.toggle('frozen',frozen);
+  this.classList.toggle('act',frozen);
+  this.innerHTML='<span class="ic">'+(frozen?'🔥':'❄️')+'</span>'+(frozen?'Reactivar':'Congelar');
+  log(frozen?'wn':'rt','CARD.'+(frozen?'FREEZE':'UNFREEZE'),'tarjeta '+(frozen?'bloqueada':'activa')+' en todos los comercios');
+});
+document.getElementById('wPin').addEventListener('click',function(){
+  var shown=this.classList.toggle('act');
+  this.innerHTML='<span class="ic">🔑</span>'+(shown?'4 8 2 1':'Ver PIN');
+  var b=this;
+  if(shown)setTimeout(function(){b.classList.remove('act');b.innerHTML='<span class="ic">🔑</span>Ver PIN';},4000);
+});
+document.getElementById('wAdd').addEventListener('click',function(){
+  this.classList.add('act');
+  this.innerHTML='<span class="ic">✓</span>Añadida';
+  log('rt','CARD.PROVISION','tarjeta añadida al wallet del teléfono');
+});
+
+/* ==================== DATA ==================== */
+var CATS=[{id:'todos',label:'Todos',em:'✨'},{id:'comida',label:'Comida',em:'🍜'},{id:'bar',label:'Bares',em:'🍸'},
+  {id:'aire',label:'Aire libre',em:'🌳'},{id:'evento',label:'Eventos',em:'🎤'},{id:'gratis',label:'Gratis',em:'🆓'}];
+var COLOR={comida:'#FF9A3C',bar:'#FF4D7D',aire:'#4FE0B0',evento:'#9D8CFF',gratis:'#4C9BFF'};
+var PLANS=[
+  {id:1,cat:'comida',em:'🍜',x:30,y:30,t:'Fideos de la Nona',r:4.7,rev:212,km:0.4,$:'$$',
+   d:'Cocina casera de barrio, mesas en la vereda y música en vivo los jueves. La cuadra entera huele a caldo.',
+   tags:['Mesas afuera','Pet friendly','Hasta 23h'],cupos:8,cap:12,slots:[{h:'19:00',left:4},{h:'20:30',left:3},{h:'22:00',left:1}]},
+  {id:2,cat:'evento',em:'🎤',x:62,y:20,t:'Noche de Stand-up',r:4.5,rev:98,km:1.2,$:'$$',
+   d:'Micrófono abierto y tres comediantes invitados. Entrada por orden de reserva, no se vende en puerta.',
+   tags:['+18','Una función','Cupo limitado'],cupos:3,cap:40,slots:[{h:'20:00',left:3},{h:'22:30',left:0}]},
+  {id:3,cat:'aire',em:'🌳',x:74,y:62,t:'Picnic del Parque Sur',r:4.9,rev:340,km:2.1,$:'Gratis',free:true,
+   d:'Plan gratuito y recurrente: cada sábado la misma comunidad arma mantas, mate y frisbee sobre la loma.',
+   tags:['Gratis','Sábados','Familias'],cupos:18,cap:30,slots:[{h:'15:00',left:12},{h:'17:00',left:6}]},
+  {id:4,cat:'bar',em:'🍸',x:44,y:74,t:'Bar El Zaguán',r:4.4,rev:167,km:0.8,$:'$$$',
+   d:'Coctelería de autor en un patio de ocho mesas. Se llena a las 21h en punto, siempre.',
+   tags:['Terraza','Reserva obligatoria'],cupos:2,cap:8,slots:[{h:'21:00',left:2},{h:'23:00',left:0}]},
+  {id:5,cat:'evento',em:'🎬',x:17,y:58,t:'Cine al Parque',r:4.6,rev:120,km:1.6,$:'Gratis',free:true,
+   d:'Función al aire libre sobre pantalla inflable. Trae manta; las sillas se acaban temprano.',
+   tags:['Gratis','19:30h','Al aire libre'],cupos:24,cap:60,slots:[{h:'19:30',left:24}]},
+  {id:6,cat:'comida',em:'🥟',x:86,y:36,t:'Mercado de Dumplings',r:4.8,rev:410,km:2.6,$:'$',
+   d:'Doce puestos, una sola fila y un ranking comunitario que cambia cada fin de semana.',
+   tags:['Barato','Fila rápida','Vegano ok'],cupos:0,cap:25,slots:[{h:'12:00',left:0},{h:'19:00',left:0}]}
+];
+
+/* ---------- filters ---------- */
+var activeCat='todos',filtersEl=document.getElementById('filters');
+CATS.forEach(function(c){
+  var b=document.createElement('button');
+  b.className='chip';b.setAttribute('aria-pressed',c.id===activeCat);
+  var n=c.id==='todos'?PLANS.length:PLANS.filter(function(p){return c.id==='gratis'?p.free:p.cat===c.id;}).length;
+  b.innerHTML=c.em+' '+c.label+' <span class="n">'+n+'</span>';
+  b.addEventListener('click',function(){
+    activeCat=c.id;
+    Array.prototype.forEach.call(filtersEl.children,function(x){x.setAttribute('aria-pressed','false');});
+    b.setAttribute('aria-pressed','true');applyFilter();
+    log('rt','FILTER.SET','categoría = '+c.id);
+  });
+  filtersEl.appendChild(b);
+});
+function matches(p){return activeCat==='todos'||(activeCat==='gratis'?!!p.free:p.cat===activeCat);}
+function applyFilter(){
+  var n=0;
+  PLANS.forEach(function(p){
+    var ok=matches(p);if(ok)n++;
+    p._pin.classList.toggle('hidden',!ok);p._card.classList.toggle('gone',!ok);
+  });
+  document.getElementById('countLabel').textContent=n+(n===1?' resultado':' resultados');
+}
+
+/* ---------- pins + cards ---------- */
+var mapbox=document.getElementById('mapbox'),cardsEl=document.getElementById('cards');
+PLANS.forEach(function(p){
+  var pin=document.createElement('button');
+  pin.className='pin';pin.style.setProperty('--pc',COLOR[p.cat]);
+  pin.style.left=p.x+'%';pin.style.top=p.y+'%';
+  pin.innerHTML=p.em+(p.cupos<=2&&p.cupos>0?'<span class="hot-dot">!</span>':'');
+  pin.title=p.t;pin.addEventListener('click',function(){openSheet(p);});
+  mapbox.appendChild(pin);p._pin=pin;
+  var c=document.createElement('button');
+  c.className='card';
+  c.innerHTML='<span class="thumb">'+p.em+'</span><span class="body"><span class="t">'+p.t+
+    '</span><span class="m"><b>★ '+p.r+'</b><span>'+p.km+' km</span><span>'+p.$+'</span></span></span><span class="badge-cupos"></span>';
+  c.addEventListener('click',function(){openSheet(p);});
+  cardsEl.appendChild(c);p._card=c;p._badge=c.querySelector('.badge-cupos');
+  paintBadge(p);
+});
+function paintBadge(p){
+  var b=p._badge;
+  b.className='badge-cupos'+(p.cupos===0?' zero':p.cupos<=3?' low':'');
+  b.textContent=p.cupos===0?'agotado':p.cupos+' cupos';
+}
+applyFilter();
+
+/* ---------- live cupo drain ---------- */
+setInterval(function(){
+  var pool=PLANS.filter(function(p){return p.cupos>0;});
+  if(!pool.length)return;
+  var p=rnd(pool),take=Math.min(Math.random()<.75?1:2,p.cupos);
+  p.cupos-=take;
+  var s=p.slots.filter(function(x){return x.left>0;});
+  if(s.length){var sl=rnd(s);sl.left=Math.max(0,sl.left-take);}
+  paintBadge(p);
+  if(p.cupos<=2&&p.cupos>0&&!p._pin.querySelector('.hot-dot'))p._pin.insertAdjacentHTML('beforeend','<span class="hot-dot">!</span>');
+  log('rt','CUPO.TAKEN',rnd(NAMES)+' tomó '+take+' en '+p.t+' · quedan '+p.cupos);
+  if(current&&current.id===p.id)refreshSheetLive();
+  if(p.id===4)pushBizReservation();
+},4200);
+
+/* ---------- sheet ---------- */
+var scrim=document.getElementById('scrim'),sheet=document.getElementById('sheet'),sheetIn=document.getElementById('sheetIn');
+var current=null,selSlot=null,people=2,phase='idle';
+function openSheet(p){current=p;selSlot=null;people=2;phase='idle';renderSheet();scrim.classList.add('on');sheet.classList.add('on');log('rt','PLAN.OPEN','suscrito a plan#'+p.id+' · '+p.t);}
+function closeSheet(){scrim.classList.remove('on');sheet.classList.remove('on');if(current)log('rt','PLAN.LEAVE','desuscrito de plan#'+current.id);current=null;}
+scrim.addEventListener('click',closeSheet);
+
+function renderSheet(){
+  var p=current;if(!p)return;
+  var col=COLOR[p.cat],pct=Math.round((p.cupos/p.cap)*100);
+  var disc=credits>0?'<div class="blk" style="border-color:rgba(79,224,176,.3);background:rgba(79,224,176,.07)"><div class="blk-h"><span class="lab" style="color:var(--mint)">Créditos disponibles</span><span class="tagtech rt">🏆 del torneo</span></div><div style="font-size:12.5px;color:var(--mut)">Se aplicarán <b style="color:var(--mint)">'+money(credits)+'</b> a esta reserva.</div></div>':'';
+  sheetIn.innerHTML=
+   '<div class="hero" style="background:linear-gradient(150deg,'+col+'33,'+col+'0a);border:1px solid '+col+'33">'+p.em+'</div>'+
+   '<h3>'+p.t+'</h3>'+
+   '<div class="meta"><span class="star">★ '+p.r+'</span><span>'+p.rev+' reseñas</span><span>·</span><span>'+p.km+' km</span><span>·</span><span>'+p.$+'</span></div>'+
+   '<p class="desc">'+p.d+'</p>'+
+   '<div class="tagrow">'+p.tags.map(function(t){return '<span class="tg">'+t+'</span>';}).join('')+'</div>'+
+   '<div class="blk"><div class="blk-h"><span class="lab">Disponibilidad</span><span class="tagtech rt">📡 en vivo</span></div>'+
+     '<div class="livecupos"><span class="n" id="cn">'+p.cupos+'</span><span>de '+p.cap+'</span><span class="bar"><i id="cbar" style="width:'+pct+'%"></i></span></div></div>'+
+   '<div class="blk"><div class="blk-h"><span class="lab">Elige horario</span><span class="tagtech rt">se actualiza solo</span></div><div class="slots" id="slots"></div></div>'+
+   '<div class="blk"><div class="blk-h"><span class="lab">Personas</span></div><div class="stepper"><button id="mn">−</button><span class="num">'+people+'</span><button id="pl">+</button><span class="who">tú + '+(people-1)+' invitado'+(people-1===1?'':'s')+'</span></div></div>'+
+   disc+'<div class="race" id="race"></div><div id="ctaZone"></div>';
+  renderSlots();renderCTA();
+  document.getElementById('mn').addEventListener('click',function(){if(people>1){people--;renderSheet();}});
+  document.getElementById('pl').addEventListener('click',function(){if(people<4){people++;renderSheet();}});
+}
+function renderSlots(){
+  var box=document.getElementById('slots');if(!box)return;
+  box.innerHTML='';
+  current.slots.forEach(function(s){
+    var b=document.createElement('button');
+    b.className='slot';b.disabled=s.left<people;
+    b.setAttribute('aria-pressed',selSlot===s.h);
+    b.innerHTML=s.h+'<small>'+(s.left===0?'agotado':s.left+' libres')+'</small>';
+    if(!b.disabled)b.addEventListener('click',function(){selSlot=(selSlot===s.h?null:s.h);renderSlots();renderCTA();});
+    box.appendChild(b);
+  });
+}
+function renderCTA(){
+  var z=document.getElementById('ctaZone');if(!z)return;
+  if(phase==='idle'){
+    var ok=!!selSlot&&current.cupos>=people;
+    z.innerHTML='<button class="cta" id="go"'+(ok?'':' disabled')+'>'+
+      (ok?'Reservar '+people+' cupo'+(people>1?'s':'')+' · '+selSlot:(current.cupos===0?'Sin cupos disponibles':'Elige un horario'))+'</button>'+
+      '<p class="hint">'+(ok?'Se bloquean tus cupos por 60 s mientras confirmas.':'Los horarios llenos se marcan solos cuando otro usuario reserva.')+'</p>';
+    if(ok)document.getElementById('go').addEventListener('click',startReserve);
+  }else{
+    z.innerHTML='<button class="cta" disabled><span class="spin"></span>Asegurando tus cupos…</button>';
+  }
+}
+function refreshSheetLive(){
+  var cn=document.getElementById('cn'),cb=document.getElementById('cbar');
+  if(!cn)return;
+  cn.textContent=current.cupos;cn.classList.add('flash');
+  setTimeout(function(){cn.classList.remove('flash');},600);
+  cb.style.width=Math.round((current.cupos/current.cap)*100)+'%';
+  if(selSlot){
+    var s=current.slots.filter(function(x){return x.h===selSlot;})[0];
+    if(s&&s.left<people){selSlot=null;log('wn','SLOT.LOST','tu horario se llenó mientras decidías');}
+  }
+  if(phase==='idle'){renderSlots();renderCTA();}
+}
+function bump(v){return 'v'+(parseInt(v.slice(1),10)+1);}
+function genCode(){
+  var a='ABCDEFGHJKLMNPQRSTUVWXYZ',n='0123456789',s='';
+  for(var i=0;i<3;i++)s+=a[Math.floor(Math.random()*a.length)];
+  s+='-';for(var j=0;j<3;j++)s+=n[Math.floor(Math.random()*n.length)];
+  return s;
+}
+function startReserve(){
+  var p=current,ppl=people,slot=selSlot,used=credits;
+  phase='racing';renderCTA();
+  var ver='v'+(40+Math.floor(Math.random()*30)),rival=rnd(NAMES);
+  var race=document.getElementById('race');
+  race.className='race on';
+  race.innerHTML='<span class="tagtech cc">🔒 concurrencia · lock optimista</span><div style="height:9px"></div>'+
+    '<div class="lane wait" id="l1"><span class="d"></span>Tú · '+ppl+' cupo'+(ppl>1?'s':'')+'<span class="s">CAS sobre '+ver+'…</span></div>'+
+    '<div class="lane wait" id="l2"><span class="d"></span>'+rival+' · 2 cupos<span class="s">CAS sobre '+ver+'…</span></div>'+
+    '<div class="note">Ambas peticiones leyeron '+ver+'. El servidor confirma solo la primera que escriba; la segunda falla y se reintenta contra el estado nuevo.</div>';
+  log('cc','RESERVE.TRY','plan#'+p.id+' · '+ppl+' cupos · base '+ver);
+  setTimeout(function(){
+    var youWin=p.cupos>=ppl&&Math.random()>.38;
+    var l1=document.getElementById('l1'),l2=document.getElementById('l2');
+    if(!l1)return;
+    if(youWin){
+      l1.className='lane ok';l1.querySelector('.s').textContent='OK · '+bump(ver);
+      l2.className='lane no';l2.querySelector('.s').textContent='CONFLICT · reintenta';
+      p.cupos=Math.max(0,p.cupos-ppl);
+      var s=p.slots.filter(function(x){return x.h===slot;})[0];
+      if(s)s.left=Math.max(0,s.left-ppl);
+      paintBadge(p);
+      var code=genCode();
+      if(used>0){spendCredits(used,'Reserva '+p.t);log('cc','CREDIT.SPENT',money(used)+' aplicados a '+code);}
+      addRes({t:p.t,em:p.em,slot:slot,ppl:ppl,code:code,wl:false,cred:used});
+      log('cc','RESERVE.OK','plan#'+p.id+' confirmada · '+code);
+      log('wn','RESERVE.CONFLICT',rival+' rechazado sobre '+ver+' → lista de espera');
+      if(p.id===4)blog('cc','RESERVE.OK','nueva reserva '+code+' · '+ppl+'p · '+slot);
+      showTicket(code,slot,ppl,false,used);
+    }else{
+      l1.className='lane no';l1.querySelector('.s').textContent='CONFLICT · reintenta';
+      l2.className='lane ok';l2.querySelector('.s').textContent='OK · '+bump(ver);
+      p.cupos=Math.max(0,p.cupos-2);paintBadge(p);
+      var code2=genCode();
+      addRes({t:p.t,em:p.em,slot:slot,ppl:ppl,code:code2,wl:true,cred:0});
+      log('wn','RESERVE.CONFLICT','tu escritura sobre '+ver+' fue rechazada');
+      log('cc','WAITLIST.ADD','plan#'+p.id+' · posición #1');
+      showTicket(code2,slot,ppl,true,0);
+    }
+    phase='idle';
+  },1500);
+}
+function showTicket(code,slot,ppl,wl,used){
+  sheetIn.innerHTML=
+    '<div class="ticket"'+(wl?' style="background:linear-gradient(140deg,rgba(255,154,60,.16),rgba(255,154,60,.04));border-color:rgba(255,154,60,.3)"':'')+'>'+
+      '<div style="font-size:36px">'+(wl?'⏳':'🎟️')+'</div>'+
+      '<div class="k"'+(wl?' style="color:var(--mango)"':'')+'>'+code+'</div>'+
+      '<div class="l">'+(wl?'Lista de espera · posición #1':'Reserva confirmada')+'</div>'+
+      (used>0?'<div class="l" style="color:var(--mint);margin-top:6px">−'+money(used)+' en créditos aplicados</div>':'')+
+    '</div>'+
+    '<h3>'+current.t+'</h3>'+
+    '<p class="desc">'+(wl?'Alguien confirmó ese cupo 0,3 s antes que tú. Quedaste primero en la fila: si se libera, tu reserva se confirma sola y te avisamos.'
+      :ppl+' persona'+(ppl>1?'s':'')+' · '+slot+'. Muestra este código en la entrada. Te avisamos si algo cambia.')+'</p>'+
+    '<div class="blk"><div class="blk-h"><span class="lab">'+(wl?'Qué pasó':'Detalle')+'</span><span class="tagtech cc">🔒 concurrencia</span></div>'+
+      '<div class="note">'+(wl?'Tu petición llevaba una versión ya obsoleta del cupo. En vez de sobrevender, el servidor la rechaza y te encola: la fila es la salida natural del conflicto.'
+        :'Cupos descontados atómicamente en la misma transacción que emitió el código. Ningún otro proceso pudo escribir esa versión.')+'</div></div>'+
+    '<button class="cta ghost" id="bk">Volver al mapa</button>';
+  document.getElementById('bk').addEventListener('click',closeSheet);
+}
+
+/* ---------- reservas ---------- */
+var RES=[],resList=document.getElementById('resList');
+function addRes(r){RES.unshift(r);paintRes();document.getElementById('resDot').classList.add('on');}
+function paintRes(){
+  document.getElementById('resCount').textContent=RES.length+(RES.length===1?' activa':' activas');
+  if(!RES.length){resList.innerHTML='<div class="empty"><div class="big">🎟️</div><p>Todavía no tienes reservas.<br>Abre un plan del mapa y asegura tu cupo.</p></div>';return;}
+  resList.innerHTML=RES.map(function(r){
+    return '<div class="rcard'+(r.wl?' wl':'')+'"><div class="rt-t">'+r.em+' '+r.t+'</div>'+
+      '<div class="rt-m">'+r.slot+' · '+r.ppl+' persona'+(r.ppl>1?'s':'')+(r.cred?' · −'+money(r.cred)+' créditos':'')+'</div>'+
+      '<div class="rt-k"><span class="code">'+r.code+'</span><span class="st">'+(r.wl?'EN ESPERA':'CONFIRMADA')+'</span></div></div>';
+  }).join('');
+}
+paintRes();
+
+/* ---------- tabs ---------- */
+var tbs=document.querySelectorAll('.tb');
+var pans={mapa:document.getElementById('p-mapa'),copi:document.getElementById('p-copi'),juego:document.getElementById('p-juego'),res:document.getElementById('p-res'),wal:document.getElementById('p-wal')};
+tbs.forEach(function(b){
+  b.addEventListener('click',function(){
+    tbs.forEach(function(x){x.classList.remove('on');});
+    b.classList.add('on');
+    Object.keys(pans).forEach(function(k){pans[k].classList.remove('on');});
+    pans[b.dataset.tab].classList.add('on');
+    filtersEl.style.display=b.dataset.tab==='mapa'?'flex':'none';
+    if(b.dataset.tab==='res')document.getElementById('resDot').classList.remove('on');
+    if(b.dataset.tab==='wal')document.getElementById('walDot').classList.remove('on');
+  });
+});
+
+/* ==================== FLASH DEAL ==================== */
+var DEALS=[
+  {em:'☕',n:'Café Rota',off:'-70%',w:'en tu próxima visita, solo hoy',stock:1},
+  {em:'🍸',n:'Bar El Zaguán',off:'2x1',w:'en cócteles de autor, hasta las 22h',stock:1},
+  {em:'🍜',n:'Fideos de la Nona',off:'-50%',w:'en el segundo plato',stock:1},
+  {em:'🎬',n:'Cine al Parque',off:'GRATIS',w:'combo palomitas + bebida',stock:1}
+];
+var flash=document.getElementById('flash'),fTime=document.getElementById('fTime'),fEyes=document.getElementById('fEyes');
+var fMain=document.getElementById('fMain'),fResult=document.getElementById('fResult'),fRace=document.getElementById('fRace');
+var fClaim=document.getElementById('fClaim'),fSkip=document.getElementById('fSkip'),fTag=document.getElementById('fTag');
+var fTimer=null,fEyeT=null,fSecs=15,fClaimed=false,fStock=1;
+
+function openFlash(deal){
+  var d=deal||rnd(DEALS);
+  fStock=d.stock||1;fClaimed=false;fSecs=d.dur||15;
+  fTag.textContent=fStock===1?'⚡ FLASH · 1 SOLO CUPÓN':'⚡ FLASH · STOCK '+fStock;
+  document.getElementById('fOff').textContent=d.off;
+  document.getElementById('fEm').textContent=d.em;
+  document.getElementById('fName').textContent=d.n;
+  document.getElementById('fWhat').textContent=d.w;
+  document.getElementById('fQty').textContent=fStock+' / '+fStock;
+  fMain.style.display='block';fResult.className='f-result';fResult.innerHTML='';
+  fRace.className='f-race';fRace.innerHTML='';
+  fClaim.disabled=false;fClaim.innerHTML='RECLAMAR AHORA';
+  fTime.textContent='00:'+String(fSecs).padStart(2,'0');
+  flash.classList.add('on');
+  log('cc','DEAL.PUSH','flash '+d.off+' · '+d.n+' · stock '+fStock);
+  var eyes=18+Math.floor(Math.random()*26);
+  fEyes.textContent='👀 '+eyes+' mirando';
+  clearInterval(fEyeT);
+  fEyeT=setInterval(function(){eyes=Math.max(6,eyes+(Math.random()<.6?1:-1)*Math.ceil(Math.random()*3));fEyes.textContent='👀 '+eyes+' mirando';},900);
+  clearInterval(fTimer);
+  fTimer=setInterval(function(){
+    fSecs--;fTime.textContent='00:'+String(Math.max(0,fSecs)).padStart(2,'0');
+    if(fSecs<=0){clearInterval(fTimer);if(!fClaimed){log('wn','DEAL.EXPIRED','cupón liberado sin reclamar');closeFlash();}}
+  },1000);
+}
+function closeFlash(){flash.classList.remove('on');clearInterval(fTimer);clearInterval(fEyeT);}
+fSkip.addEventListener('click',function(){log('rt','DEAL.SKIP','usuario descartó el cupón');closeFlash();});
+document.getElementById('btnFlash').addEventListener('click',function(){openFlash();});
+
+var wonCoupon=false;
+fClaim.addEventListener('click',function(){
+  fClaimed=true;wonCoupon=false;fClaim.disabled=true;
+  fClaim.innerHTML='<span class="spin" style="border-color:rgba(255,227,176,.3);border-top-color:#FFE3B0"></span> COMPITIENDO…';
+  var rivals=[];
+  while(rivals.length<2){var r=rnd(NAMES);if(rivals.indexOf(r)<0)rivals.push(r);}
+  fRace.className='f-race on';
+  fRace.innerHTML='<div class="f-lane">🔒 Tú<span class="s">pidiendo lock…</span></div>'+
+    rivals.map(function(x){return '<div class="f-lane">🔒 '+x+'<span class="s">pidiendo lock…</span></div>';}).join('');
+  log('cc','DEAL.CLAIM',(rivals.length+1)+' solicitudes simultáneas sobre stock='+fStock);
+  setTimeout(function(){
+    var win=Math.random()>(fStock>1?.2:.45);
+    clearInterval(fTimer);clearInterval(fEyeT);
+    fMain.style.display='none';fResult.className='f-result on';
+    if(win){
+      var code=genCode();
+      fResult.innerHTML='<div class="em">🎉</div><h4>¡Es tuyo!</h4>'+
+        '<p>Ganaste el lock en 41 ms. Los otros intentos vieron stock&nbsp;0 y no pudieron cobrar.</p>'+
+        '<div class="f-code">'+code+'</div><button class="f-claim" id="fDone">Ver en mis cupones</button>';
+      log('cc','DEAL.WON','lock adquirido · cupón '+code);
+      log('wn','DEAL.REJECTED',rivals.length+' solicitudes rechazadas · stock 0');
+      addCoupon({em:document.getElementById('fEm').textContent,n:document.getElementById('fName').textContent,
+        off:document.getElementById('fOff').textContent,code:code,exp:'Vence hoy 23:59',used:false});
+      wonCoupon=true;
+      confetti();
+    }else{
+      fResult.innerHTML='<div class="em">😖</div><h4>Se lo llevó '+rivals[0]+'</h4>'+
+        '<p>Adquirió el lock 0,2 s antes. El stock era '+fStock+': tu petición se rechaza en vez de duplicar el cupón.</p>'+
+        '<button class="f-claim" id="fDone">Avísame del próximo</button>';
+      log('wn','DEAL.LOST',rivals[0]+' ganó el lock · tu claim rechazado');
+    }
+    document.getElementById('fDone').addEventListener('click',function(){
+      closeFlash();
+      if(wonCoupon)document.querySelector('.tb[data-tab="wal"]').click();
+    });
+  },1400);
+});
+function confetti(){
+  var host=document.querySelector('.fcard'),cols=['#FFE3B0','#2A0913','#fff','#4FE0B0'];
+  for(var i=0;i<18;i++){
+    (function(i){
+      var c=document.createElement('div');
+      c.className='conf';c.style.background=cols[i%cols.length];
+      c.style.left=(8+Math.random()*84)+'%';c.style.top='16%';
+      c.style.animationDelay=(Math.random()*.35)+'s';
+      host.appendChild(c);setTimeout(function(){c.remove();},2000);
+    })(i);
+  }
+}
+setTimeout(function(){openFlash();},3600);
+
+/* ==================== CREDIT POT ==================== */
+var cmodal=document.getElementById('cmodal'),ccStock=document.getElementById('ccStock');
+var ccMain=document.getElementById('ccMain'),ccRes=document.getElementById('ccRes'),ccLanes=document.getElementById('ccLanes');
+var ccClaim=document.getElementById('ccClaim'),ccSkip=document.getElementById('ccSkip');
+var potStock=3,potDrain=null,potAmount=2000;
+
+function openPot(){
+  potStock=3;potAmount=rnd([1500,2000,3000]);
+  ccStock.textContent=potStock;ccStock.className='';
+  document.querySelector('.pot .amt').textContent=money(potAmount);
+  ccMain.style.display='block';ccRes.className='cc-res';ccRes.innerHTML='';
+  ccLanes.className='cc-lanes';ccLanes.innerHTML='';
+  ccClaim.disabled=false;ccClaim.innerHTML='RECLAMAR MI CRÉDITO';
+  cmodal.classList.add('on');
+  log('cc','POT.OPEN','bote '+money(potAmount)+' × 3 · 6 ganadores compiten');
+  clearInterval(potDrain);
+  potDrain=setInterval(function(){
+    if(potStock<=0){clearInterval(potDrain);return;}
+    potStock--;
+    ccStock.textContent=potStock;
+    if(potStock<=1)ccStock.className='low';
+    log('wn','POT.TAKEN',rnd(NAMES)+' reclamó un crédito · quedan '+potStock);
+    if(potStock===0){
+      clearInterval(potDrain);
+      if(!ccClaim.disabled){
+        ccClaim.disabled=true;ccClaim.textContent='BOTE AGOTADO';
+        log('wn','POT.EMPTY','bote vacío antes de tu intento');
+      }
+    }
+  },2600);
+}
+function closePot(){cmodal.classList.remove('on');clearInterval(potDrain);}
+ccSkip.addEventListener('click',function(){log('rt','POT.SKIP','usuario no reclamó');closePot();});
+
+ccClaim.addEventListener('click',function(){
+  clearInterval(potDrain);
+  ccClaim.disabled=true;
+  ccClaim.innerHTML='<span class="spin" style="border-color:rgba(159,250,216,.3);border-top-color:#9FFAD8"></span> COMPITIENDO…';
+  var rivals=[];
+  while(rivals.length<3){var r=rnd(NAMES);if(rivals.indexOf(r)<0)rivals.push(r);}
+  ccLanes.className='cc-lanes on';
+  ccLanes.innerHTML='<div class="cc-lane" id="cl0">🏆 Tú · sala #A7<span class="s">DECR sobre bote…</span></div>'+
+    rivals.map(function(x,i){return '<div class="cc-lane" id="cl'+(i+1)+'">🏆 '+x+' · sala #'+rnd(['B2','C9','D4'])+'<span class="s">DECR sobre bote…</span></div>';}).join('');
+  log('cc','POT.CLAIM','4 decrementos simultáneos sobre stock='+potStock);
+
+  setTimeout(function(){
+    var win=potStock>0&&Math.random()>.35;
+    ccMain.style.display='none';ccRes.className='cc-res on';
+    if(win){
+      potStock--;addCredits(potAmount,'Bote de créditos · ronda #'+roundNo);
+      ccRes.innerHTML='<div class="em">🤑</div><h4>'+money(potAmount)+' para ti</h4>'+
+        '<p>Tu decremento se aplicó primero. Quedan '+potStock+' créditos en el bote; los demás fueron rechazados sin cobrar.</p>'+
+        '<button class="cc-btn" id="ccDone">Ver mi tarjeta</button>';
+      log('cc','POT.WON',money(potAmount)+' acreditados · saldo '+money(credits));
+      log('wn','POT.REJECTED','3 decrementos rechazados · bote en '+potStock);
+    }else{
+      ccRes.innerHTML='<div class="em">😤</div><h4>Bote agotado</h4>'+
+        '<p>Los 3 créditos se fueron a otras salas milisegundos antes. Tu decremento se rechazó: el bote nunca queda en negativo.</p>'+
+        '<button class="cc-btn" id="ccDone">Entrar a la próxima ronda</button>';
+      log('wn','POT.LOST','decremento rechazado · bote en 0');
+    }
+    document.getElementById('ccDone').addEventListener('click',function(){
+      closePot();
+      if(win)document.querySelector('.tb[data-tab="wal"]').click();
+    });
+  },1500);
+});
+
+/* ==================== COPILOTO ==================== */
+var chatLog=document.getElementById('chatLog'),chatForm=document.getElementById('chatForm'),chatInput=document.getElementById('chatInput');
+var chatChips=document.getElementById('chatChips'),chatBusy=false;
+function byId(id){return PLANS.filter(function(p){return p.id===id;})[0];}
+
+var TEMPLATES=[
+  {k:['novia','pareja','aniversario','romantic','románt','cita','ella','él','date'],
+   say:'Perfecto. Como es cita y hoy no llueve, te armé algo que empieza suave al aire libre y termina sentados. Todo queda a menos de 1 km entre parada y parada.',
+   title:'Cita tranquila · esta noche',
+   stops:[{id:5,h:'19:30',w:'llegar 15 min antes, las sillas se acaban'},
+          {id:4,h:'21:00',w:'terraza, la mesa del fondo es la buena'}],ppl:2},
+  {k:['amigos','parche','grupo','somos','panas','cumple'],
+   say:'Van varios, así que priorizo sitios con cupo real para grupo y una sola zona para no moverse mucho. Reservo con margen entre paradas.',
+   title:'Parche de amigos · esta noche',
+   stops:[{id:1,h:'20:30',w:'mesa larga afuera'},
+          {id:2,h:'20:00',w:'entrada solo por reserva'},
+          {id:4,h:'23:00',w:'cierre en la terraza'}],ppl:4},
+  {k:['plata','barato','económic','economic','poca','gratis','sin plata','presupuesto'],
+   say:'Te armé un día casi gratis: dos planes sin costo y una parada barata al final. Si tienes créditos del torneo, los aplico solos.',
+   title:'Día barato · hoy',
+   stops:[{id:3,h:'15:00',w:'gratis, lleva manta'},
+          {id:5,h:'19:30',w:'función gratuita'},
+          {id:6,h:'21:00',w:'12 puestos, fila rápida'}],ppl:2},
+  {k:['comer','comida','hambre','cenar','almorzar','restaurante'],
+   say:'Enfocado en comer bien sin trasnochar: cena temprano y algo suave después para bajar la comida.',
+   title:'Plan de comida · hoy',
+   stops:[{id:1,h:'20:30',w:'pide el caldo, es el fuerte'},
+          {id:4,h:'23:00',w:'un trago y a casa'}],ppl:2}
+];
+var FALLBACK={say:'Con lo que me contaste te propongo esto. Mezclé un plan al aire libre con uno bajo techo por si cambia el clima, y dejé espacio para moverte entre los dos.',
+  title:'Plan sugerido · hoy',
+  stops:[{id:3,h:'15:00',w:'gratis, buen punto de encuentro'},{id:1,h:'20:30',w:'cena sin reserva previa'}],ppl:2};
+
+function pickTemplate(txt){
+  var t=txt.toLowerCase();
+  for(var i=0;i<TEMPLATES.length;i++){
+    for(var j=0;j<TEMPLATES[i].k.length;j++)if(t.indexOf(TEMPLATES[i].k[j])>=0)return TEMPLATES[i];
+  }
+  return FALLBACK;
+}
+function pushMsg(cls,html){
+  var m=document.createElement('div');
+  m.className='msg '+cls;m.innerHTML=html;
+  chatLog.appendChild(m);chatLog.scrollTop=chatLog.scrollHeight;
+  return m;
+}
+function pushTyping(){
+  var m=document.createElement('div');
+  m.className='msg bot typing';m.innerHTML='<i></i><i></i><i></i>';
+  chatLog.appendChild(m);chatLog.scrollTop=chatLog.scrollHeight;
+  return m;
+}
+function askCopilot(txt){
+  if(chatBusy)return;
+  chatBusy=true;
+  pushMsg('me',txt);
+  log('rt','COPILOT.ASK','"'+txt.slice(0,38)+(txt.length>38?'…':'')+'"');
+  var typ=pushTyping();
+  setTimeout(function(){
+    typ.remove();
+    var tpl=pickTemplate(txt);
+    pushMsg('bot',tpl.say);
+    setTimeout(function(){renderPlanCard(tpl);chatBusy=false;},420);
+    log('rt','COPILOT.PLAN',tpl.stops.length+' paradas propuestas · '+tpl.ppl+' personas');
+  },1250);
+}
+function renderPlanCard(tpl){
+  var wrap=pushMsg('bot wide','');
+  var stops=tpl.stops.map(function(s){var p=byId(s.id);return {p:p,h:s.h,w:s.w,st:'wait',code:null};});
+  var cost=stops.reduce(function(a,s){return a+(s.p.free?0:s.p.$==='$'?18000:s.p.$==='$$'?42000:65000);},0)*tpl.ppl;
+  function paint(){
+    wrap.innerHTML='<div class="planc">'+
+      '<div class="ph"><span class="t">'+tpl.title+'</span><span class="c">'+tpl.ppl+' personas</span></div>'+
+      stops.map(function(s,i){
+        return '<div class="stop"><span class="hr">'+s.h+'</span><span class="em">'+s.p.em+'</span>'+
+          '<span class="i"><span class="n">'+s.p.t+'</span><span class="w">'+(s.note||s.w)+'</span></span>'+
+          '<span class="stt '+s.st+'">'+({wait:'pendiente',run:'reservando…',ok:s.code||'listo',no:'sin cupo'}[s.st])+'</span></div>';
+      }).join('')+
+      '<div class="money">Estimado <b>'+(cost===0?'gratis':money(cost))+'</b>'+
+        (credits>0?'<span style="color:var(--mint);margin-left:auto">−'+money(credits)+' en créditos</span>':'')+'</div>'+
+      '<div class="foot" id="pfoot"></div></div>';
+    var foot=wrap.querySelector('#pfoot');
+    if(stops.every(function(s){return s.st==='wait';})){
+      foot.innerHTML='<button id="acc">Aceptar y reservar todo</button><button class="alt" id="oth">Otra idea</button>';
+      foot.querySelector('#acc').addEventListener('click',function(){execute();});
+      foot.querySelector('#oth').addEventListener('click',function(){
+        if(chatBusy)return;
+        chatBusy=true;
+        var typ=pushTyping();
+        setTimeout(function(){
+          typ.remove();
+          var other=rnd(TEMPLATES.filter(function(t){return t.title!==tpl.title;}));
+          pushMsg('bot','Va otra opción:');
+          renderPlanCard(other);chatBusy=false;
+        },1000);
+      });
+    }else if(stops.some(function(s){return s.st==='run'||s.st==='wait';})){
+      foot.innerHTML='<button disabled><span class="spin"></span>Ejecutando…</button>';
+    }else{
+      foot.innerHTML='<button class="alt" id="seeres" style="flex:1">Ver mis reservas</button>';
+      foot.querySelector('#seeres').addEventListener('click',function(){document.querySelector('.tb[data-tab="res"]').click();});
+    }
+  }
+  function execute(){
+    chatBusy=true;
+    log('cc','SAGA.START','ejecutando '+stops.length+' reservas encadenadas');
+    pushMsg('bot','Listo, lo ejecuto. Voy parada por parada: si una falla, la cambio sin tumbar el resto del plan.');
+    var i=0;
+    (function next(){
+      if(i>=stops.length){
+        var okN=stops.filter(function(s){return s.st==='ok';}).length;
+        var used=credits;
+        if(used>0&&okN>0){spendCredits(used,'Plan del día · Copiloto');log('cc','CREDIT.SPENT',money(used)+' aplicados al plan');}
+        paint();
+        pushMsg('bot','<b>Plan del día listo.</b> '+okN+' de '+stops.length+' reservas confirmadas'+
+          (used>0?', con '+money(used)+' de créditos aplicados':'')+'. Te avisaré 40 min antes de cada parada; si algo se cae, te propongo el reemplazo sin que tengas que pedirlo.');
+        log('cc','SAGA.DONE',okN+'/'+stops.length+' confirmadas · plan guardado');
+        chatBusy=false;
+        document.getElementById('resDot').classList.add('on');
+        return;
+      }
+      var s=stops[i];
+      s.st='run';paint();
+      log('cc','SAGA.STEP','reservando '+s.p.t+' · '+s.h);
+      setTimeout(function(){
+        var ok=s.p.cupos>=tpl.ppl&&Math.random()>.25;
+        if(ok){
+          s.p.cupos=Math.max(0,s.p.cupos-tpl.ppl);paintBadge(s.p);
+          s.code=genCode();s.st='ok';
+          addRes({t:s.p.t,em:s.p.em,slot:s.h,ppl:tpl.ppl,code:s.code,wl:false,cred:0});
+          log('cc','SAGA.OK',s.p.t+' → '+s.code);
+        }else{
+          var alt=PLANS.filter(function(p){return p.cupos>=tpl.ppl&&p.id!==s.p.id&&!stops.some(function(z){return z.p.id===p.id;});})[0];
+          if(alt){
+            log('wn','SAGA.CONFLICT',s.p.t+' sin cupo · sustituyendo por '+alt.t);
+            alt.cupos=Math.max(0,alt.cupos-tpl.ppl);paintBadge(alt);
+            s.p=alt;s.note='reemplazo automático · el original se llenó';
+            s.code=genCode();s.st='ok';
+            addRes({t:alt.t,em:alt.em,slot:s.h,ppl:tpl.ppl,code:s.code,wl:false,cred:0});
+            log('cc','SAGA.OK',alt.t+' → '+s.code+' (sustituto)');
+          }else{
+            s.st='no';s.note='sin alternativa en esa franja';
+            log('wn','SAGA.FAIL',s.p.t+' sin cupo · sin sustituto');
+          }
+        }
+        paint();i++;setTimeout(next,520);
+      },1150);
+    })();
+  }
+  paint();
+  chatLog.scrollTop=chatLog.scrollHeight;
+}
+var CHIPS=['Salida con mi novia, algo tranquilo','Somos 5 amigos esta noche','Tengo poca plata','Quiero comer bien'];
+CHIPS.forEach(function(c){
+  var b=document.createElement('button');
+  b.textContent=c;
+  b.addEventListener('click',function(){askCopilot(c);});
+  chatChips.appendChild(b);
+});
+chatForm.addEventListener('submit',function(e){
+  e.preventDefault();
+  var v=chatInput.value.trim();
+  if(!v||chatBusy)return;
+  chatInput.value='';askCopilot(v);
+});
+pushMsg('bot','Hola 👋 Cuéntame qué quieres hacer hoy — con quién, cuánta plata tienes, qué ánimo traes — y te armo el plan completo con horarios. Si te gusta, lo reservo todo yo.');
+
+/* ==================== SNAKE ==================== */
+var cvs=document.getElementById('snake'),ctx=cvs.getContext('2d');
+var N=22,CELL=cvs.width/N;
+var PCOL=['#4FE0B0','#FF9A3C','#9D8CFF','#FF4D7D'];
+var snakes=[],food=[],running=false,loopT=null,logGate=0;
+var roundSecs=60,roundT=null,roundNo=128;
+var roundEl=document.getElementById('roundT');
+
+function emptyCell(){
+  var t=0;
+  while(t++<300){
+    var x=Math.floor(Math.random()*N),y=Math.floor(Math.random()*N);
+    if(!occupied(x,y)&&!food.some(function(f){return f.x===x&&f.y===y;}))return{x:x,y:y};
+  }
+  return{x:1,y:1};
+}
+function occupied(x,y){
+  for(var i=0;i<snakes.length;i++){
+    if(!snakes[i].alive)continue;
+    for(var j=0;j<snakes[i].body.length;j++)if(snakes[i].body[j].x===x&&snakes[i].body[j].y===y)return true;
+  }
+  return false;
+}
+function spawnSnake(s){
+  var c=emptyCell();
+  s.body=[{x:c.x,y:c.y},{x:c.x,y:c.y},{x:c.x,y:c.y}];
+  s.dir={x:1,y:0};s.next={x:1,y:0};s.alive=true;
+}
+function initGame(){
+  snakes=[{name:'Tú',me:true,color:PCOL[0],score:0},{name:'Camilo R.',color:PCOL[1],score:0},
+    {name:'Vale G.',color:PCOL[2],score:0},{name:'Sara M.',color:PCOL[3],score:0}];
+  snakes.forEach(function(s){s.score=0;spawnSnake(s);});
+  food=[];for(var i=0;i<4;i++)food.push(emptyCell());
+  paintLB();draw();
+}
+var DIRS={up:{x:0,y:-1},down:{x:0,y:1},left:{x:-1,y:0},right:{x:1,y:0}};
+function setDir(s,d){if(d.x===-s.dir.x&&d.y===-s.dir.y)return;s.next=d;}
+function botThink(s){
+  var head=s.body[0],best=null,bd=1e9;
+  food.forEach(function(f){var d=Math.abs(f.x-head.x)+Math.abs(f.y-head.y);if(d<bd){bd=d;best=f;}});
+  var opts=[];
+  Object.keys(DIRS).forEach(function(k){
+    var d=DIRS[k];
+    if(d.x===-s.dir.x&&d.y===-s.dir.y)return;
+    var nx=head.x+d.x,ny=head.y+d.y;
+    if(nx<0||ny<0||nx>=N||ny>=N||occupied(nx,ny))return;
+    opts.push({d:d,c:(best?Math.abs(best.x-nx)+Math.abs(best.y-ny):Math.random()*10)+Math.random()*1.2});
+  });
+  if(!opts.length)return;
+  opts.sort(function(a,b){return a.c-b.c;});
+  s.next=opts[0].d;
+}
+function step(){
+  snakes.forEach(function(s){if(s.alive&&!s.me)botThink(s);});
+  snakes.forEach(function(s){
+    if(!s.alive)return;
+    s.dir=s.next;
+    var h={x:s.body[0].x+s.dir.x,y:s.body[0].y+s.dir.y};
+    if(h.x<0||h.y<0||h.x>=N||h.y>=N||occupied(h.x,h.y)){
+      s.alive=false;s.score=Math.max(0,s.score-15);
+      if(s.me)log('wn','SNAKE.DEATH','chocaste · −15 pts · respawn en 1 s');
+      var ss=s;setTimeout(function(){if(running)spawnSnake(ss);},1000);
+      return;
+    }
+    s.body.unshift(h);
+    var ate=-1;
+    food.forEach(function(f,i){if(f.x===h.x&&f.y===h.y)ate=i;});
+    if(ate>=0){
+      s.score+=10;food[ate]=emptyCell();
+      if(s.me&&Date.now()-logGate>900){logGate=Date.now();log('rt','SNAKE.SCORE','+10 · difundido a 4 jugadores');}
+    }else s.body.pop();
+  });
+  paintLB();draw();
+}
+function rr(x,y,w,h,r,fill){
+  ctx.beginPath();ctx.moveTo(x+r,y);
+  ctx.arcTo(x+w,y,x+w,y+h,r);ctx.arcTo(x+w,y+h,x,y+h,r);
+  ctx.arcTo(x,y+h,x,y,r);ctx.arcTo(x,y,x+w,y,r);ctx.closePath();
+  ctx.fillStyle=fill;ctx.fill();
+}
+function draw(){
+  ctx.fillStyle='#0C1B1F';ctx.fillRect(0,0,cvs.width,cvs.height);
+  ctx.strokeStyle='rgba(34,66,74,.5)';ctx.lineWidth=1;
+  for(var i=1;i<N;i++){
+    ctx.beginPath();ctx.moveTo(i*CELL,0);ctx.lineTo(i*CELL,cvs.height);ctx.stroke();
+    ctx.beginPath();ctx.moveTo(0,i*CELL);ctx.lineTo(cvs.width,i*CELL);ctx.stroke();
+  }
+  food.forEach(function(f){
+    var cx=f.x*CELL+CELL/2,cy=f.y*CELL+CELL/2;
+    ctx.beginPath();ctx.arc(cx,cy,CELL*0.42,0,Math.PI*2);ctx.fillStyle='rgba(255,154,60,.2)';ctx.fill();
+    ctx.beginPath();ctx.arc(cx,cy,CELL*0.26,0,Math.PI*2);ctx.fillStyle='#FF9A3C';ctx.fill();
+  });
+  snakes.forEach(function(s){
+    if(!s.alive)return;
+    s.body.forEach(function(seg,i){
+      var pad=i===0?1.5:3.5;
+      ctx.globalAlpha=i===0?1:Math.max(.42,1-i*0.045);
+      rr(seg.x*CELL+pad,seg.y*CELL+pad,CELL-pad*2,CELL-pad*2,i===0?8:6,s.color);
+    });
+    ctx.globalAlpha=1;
+    var hd=s.body[0];
+    ctx.fillStyle='rgba(10,20,23,.75)';
+    ctx.beginPath();ctx.arc(hd.x*CELL+CELL*0.36,hd.y*CELL+CELL*0.38,CELL*0.09,0,Math.PI*2);ctx.fill();
+    ctx.beginPath();ctx.arc(hd.x*CELL+CELL*0.64,hd.y*CELL+CELL*0.38,CELL*0.09,0,Math.PI*2);ctx.fill();
+  });
+}
+var lbEl=document.getElementById('lbList');
+function paintLB(){
+  var sorted=snakes.slice().sort(function(a,b){return b.score-a.score;});
+  lbEl.innerHTML=sorted.map(function(s,i){
+    return '<div class="lbrow'+(s.me?' me':'')+'"><span class="r">'+(i+1)+'</span>'+
+      '<span class="sq" style="background:'+s.color+'"></span><span class="nm">'+s.name+'</span>'+
+      (s.alive?'':'<span class="dead">respawn…</span>')+'<span class="sc">'+s.score+'</span></div>';
+  }).join('');
+}
+var gameOv=document.getElementById('gameOv');
+function startGame(){
+  if(running)return;
+  running=true;roundSecs=60;
+  roundEl.textContent='01:00';
+  gameOv.classList.add('off');
+  initGame();
+  loopT=setInterval(step,135);
+  roundT=setInterval(function(){
+    roundSecs--;
+    roundEl.textContent='00:'+String(Math.max(0,roundSecs)).padStart(2,'0');
+    if(roundSecs<=0)endRound();
+  },1000);
+  log('rt','ROOM.JOIN','sala #A7-CENTRO · ronda #'+roundNo+' · tick 135ms');
+}
+function endRound(){
+  running=false;
+  clearInterval(loopT);clearInterval(roundT);
+  var sorted=snakes.slice().sort(function(a,b){return b.score-a.score;});
+  var meRank=sorted.findIndex(function(s){return s.me;})+1;
+  var iWon=meRank===1;
+  log('rt','ROUND.END','ronda #'+roundNo+' cerrada · quedaste #'+meRank);
+  gameOv.classList.remove('off');
+  gameOv.innerHTML='<div class="t">'+(iWon?'🏆 ¡Ganaste la ronda!':'Ronda cerrada · quedaste #'+meRank)+'</div>'+
+    '<div class="podium">'+sorted.map(function(s,i){
+      return '<div class="pod-row'+(s.me?' me':'')+'"><span class="r" style="font-family:DM Mono,monospace;font-size:10px;color:var(--mut2)">'+(i+1)+'</span>'+
+      '<span class="sq" style="background:'+s.color+'"></span><span class="nm">'+s.name+'</span><span class="sc">'+s.score+'</span></div>';
+    }).join('')+'</div>'+
+    (iWon?'<div class="prize">🎁 clasificaste al bote de créditos</div><button id="goPot">Competir por créditos</button>'
+        :'<div class="s">Solo el #1 clasifica al bote de créditos de la zona.</div><button id="again">Jugar otra ronda</button>'+
+         '<button class="ghost2" id="goPotDemo">Ver el sorteo igual (demo)</button>');
+  roundNo++;
+  document.getElementById('lbRound').textContent='ronda #'+roundNo;
+  var gp=document.getElementById('goPot');
+  if(gp)gp.addEventListener('click',function(){resetOverlay();openPot();});
+  var ag=document.getElementById('again');
+  if(ag)ag.addEventListener('click',function(){resetOverlay();startGame();});
+  var gpd=document.getElementById('goPotDemo');
+  if(gpd)gpd.addEventListener('click',function(){resetOverlay();openPot();});
+}
+function resetOverlay(){
+  gameOv.innerHTML='<div class="t">Sala #A7-Centro</div>'+
+    '<div class="s">Ronda de 60 s con 3 jugadores más. Flechas, WASD o el pad de abajo.</div>'+
+    '<div class="prize">🏆 el #1 compite por créditos</div>'+
+    '<button id="gameStart">Entrar a la sala</button>';
+  document.getElementById('gameStart').addEventListener('click',startGame);
+}
+document.getElementById('gameStart').addEventListener('click',startGame);
+
+document.querySelectorAll('.dpad button').forEach(function(b){
+  b.addEventListener('click',function(){
+    var me=snakes.filter(function(s){return s.me;})[0];
+    if(me&&running)setDir(me,DIRS[b.dataset.dir]);
+  });
+});
+window.addEventListener('keydown',function(e){
+  var m={ArrowUp:'up',ArrowDown:'down',ArrowLeft:'left',ArrowRight:'right',w:'up',s:'down',a:'left',d:'right',W:'up',S:'down',A:'left',D:'right'};
+  var k=m[e.key];if(!k||!running)return;
+  e.preventDefault();
+  var me=snakes.filter(function(s){return s.me;})[0];
+  if(me)setDir(me,DIRS[k]);
+});
+var tsx=0,tsy=0;
+cvs.addEventListener('touchstart',function(e){tsx=e.touches[0].clientX;tsy=e.touches[0].clientY;},{passive:true});
+cvs.addEventListener('touchend',function(e){
+  if(!running)return;
+  var dx=e.changedTouches[0].clientX-tsx,dy=e.changedTouches[0].clientY-tsy;
+  if(Math.abs(dx)<18&&Math.abs(dy)<18)return;
+  var me=snakes.filter(function(s){return s.me;})[0];if(!me)return;
+  setDir(me,Math.abs(dx)>Math.abs(dy)?(dx>0?DIRS.right:DIRS.left):(dy>0?DIRS.down:DIRS.up));
+},{passive:true});
+initGame();
+setInterval(function(){document.getElementById('ping').textContent=(28+Math.floor(Math.random()*34))+'ms';},2600);
+
+/* ==================== BUSINESS CONSOLE ==================== */
+var navbs=document.querySelectorAll('.navb');
+var bps={resumen:document.getElementById('bp-resumen'),cupos:document.getElementById('bp-cupos'),deals:document.getElementById('bp-deals')};
+navbs.forEach(function(b){
+  b.addEventListener('click',function(){
+    navbs.forEach(function(x){x.setAttribute('aria-pressed','false');});
+    b.setAttribute('aria-pressed','true');
+    Object.keys(bps).forEach(function(k){bps[k].classList.remove('on');});
+    bps[b.dataset.bp].classList.add('on');
+  });
+});
+
+/* KPIs */
+function spark(vals,color){
+  var max=Math.max.apply(null,vals),min=Math.min.apply(null,vals),rg=(max-min)||1;
+  var pts=vals.map(function(v,i){return (i/(vals.length-1)*100).toFixed(1)+','+(28-((v-min)/rg)*24).toFixed(1);}).join(' ');
+  return '<svg viewBox="0 0 100 30" preserveAspectRatio="none" aria-hidden="true">'+
+    '<polyline points="'+pts+'" fill="none" stroke="'+color+'" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round"/>'+
+    '<circle cx="100" cy="'+(28-((vals[vals.length-1]-min)/rg)*24).toFixed(1)+'" r="2" fill="'+color+'"/></svg>';
+}
+function series(n,base,vary){var a=[],v=base;for(var i=0;i<n;i++){v=Math.max(1,v+(Math.random()-.45)*vary);a.push(Math.round(v));}return a;}
+var KPI=[
+  {l:'Visitas al perfil',v:'1.284',d:'+12% vs ayer',up:true,c:'#4FE0B0',s:series(14,60,22)},
+  {l:'Reservas hoy',v:'38',d:'+8% vs ayer',up:true,c:'#FF9A3C',s:series(14,20,9)},
+  {l:'Ocupación 21:00',v:'87%',d:'2 cupos libres',up:true,c:'#9D8CFF',s:series(14,50,18)},
+  {l:'Gasto en pauta',v:'$18.400',d:'−4% vs ayer',up:false,c:'#FF4D7D',s:series(14,40,14)}
+];
+document.getElementById('kpis').innerHTML=KPI.map(function(k){
+  return '<div class="kpi"><div class="l">'+k.l+'</div><div class="v">'+k.v+'</div>'+
+    '<div class="d '+(k.up?'up':'dn')+'">'+k.d+'</div>'+spark(k.s,k.c)+'</div>';
+}).join('');
+
+/* live reservations feed */
+var bizFeed=document.getElementById('bizFeed'),bizVer=17;
+function pushBizReservation(force){
+  var n=rnd(NAMES),ppl=1+Math.floor(Math.random()*4),slot=rnd(['21:00','23:00']);
+  var roll=Math.random(),st,cls;
+  if(roll<.62){st='CONFIRMADA';cls='ok';}
+  else if(roll<.82){st='EN ESPERA';cls='wl';}
+  else if(roll<.93){st='PENDIENTE';cls='pe';}
+  else{st='CONFLICTO';cls='no';}
+  var row=document.createElement('div');
+  row.className='frow';
+  row.innerHTML='<span class="av">'+n.charAt(0)+'</span>'+
+    '<span class="i"><span class="n">'+n+'</span><span class="m">'+ppl+'p · '+slot+' · v'+(bizVer++)+'</span></span>'+
+    (cls==='pe'?'<button class="mini go">Aceptar</button><button class="mini no">✕</button>':'<span class="st-pill '+cls+'">'+st+'</span>');
+  bizFeed.insertBefore(row,bizFeed.firstChild);
+  while(bizFeed.children.length>14)bizFeed.removeChild(bizFeed.lastChild);
+  if(cls==='pe'){
+    row.querySelector('.mini.go').addEventListener('click',function(){
+      row.querySelector('.mini.go').remove();row.querySelector('.mini.no').remove();
+      row.insertAdjacentHTML('beforeend','<span class="st-pill ok">CONFIRMADA</span>');
+      blog('cc','RESERVE.ACCEPT',n+' aceptado por staff');
+    });
+    row.querySelector('.mini.no').addEventListener('click',function(){
+      row.querySelector('.mini.go').remove();row.querySelector('.mini.no').remove();
+      row.insertAdjacentHTML('beforeend','<span class="st-pill no">RECHAZADA</span>');
+      blog('wn','RESERVE.REJECT',n+' rechazado · cupo liberado');
+    });
+  }
+  if(cls==='no')blog('wn','RESERVE.CONFLICT',n+' escribió sobre versión obsoleta');
+  else if(cls==='wl')blog('cc','WAITLIST.ADD',n+' encolado · '+slot);
+  else if(cls==='ok')blog('rt','RESERVE.OK',n+' · '+ppl+'p · '+slot);
+}
+for(var bi=0;bi<5;bi++)pushBizReservation();
+setInterval(function(){if(Math.random()<.6)pushBizReservation();},5200);
+
+/* inventory control */
+var INV=[{h:'21:00',cap:8,taken:6,v:12},{h:'23:00',cap:8,taken:8,v:9},{h:'01:00',cap:6,taken:2,v:4}];
+var invList=document.getElementById('invList'),conflictBox=document.getElementById('conflictBox'),conflictTx=document.getElementById('conflictTx');
+function paintInv(){
+  invList.innerHTML=INV.map(function(s,i){
+    var free=s.cap-s.taken,pct=Math.round((free/s.cap)*100);
+    return '<div class="invrow"><span class="h">'+s.h+'</span><span class="ver">v'+s.v+'</span>'+
+      '<span class="track"><i style="width:'+pct+'%"></i></span>'+
+      '<span class="ctr"><button data-i="'+i+'" data-d="-1">−</button><span class="n">'+s.cap+'</span><button data-i="'+i+'" data-d="1">+</button></span></div>';
+  }).join('');
+  invList.querySelectorAll('button').forEach(function(b){
+    b.addEventListener('click',function(){
+      var i=+b.dataset.i,d=+b.dataset.d,s=INV[i];
+      if(Math.random()<.28){
+        s.v+=1;s.cap=Math.max(s.taken,s.cap+(d>0?1:-1));
+        conflictBox.classList.add('on');
+        conflictTx.textContent='Otro dispositivo del staff ya modificó '+s.h+' (ahora en v'+s.v+'). Tu cambio se escribió sobre una versión vieja y fue rechazado.';
+        blog('wn','INV.CONFLICT',s.h+' · escritura rechazada · ahora v'+s.v);
+        paintInv();return;
+      }
+      s.cap=Math.max(s.taken,Math.min(20,s.cap+d));
+      s.v+=1;
+      blog('cc','INV.UPDATE',s.h+' → '+s.cap+' cupos · v'+s.v);
+      var pl=PLANS[3];
+      pl.cap=INV.reduce(function(a,x){return a+x.cap;},0);
+      paintInv();
+    });
+  });
+}
+paintInv();
+document.getElementById('conflictFix').addEventListener('click',function(){
+  conflictBox.classList.remove('on');
+  blog('rt','INV.RELOAD','estado releído · versiones sincronizadas');
+});
+
+/* auction */
+var BIDS=[{n:'Café Rota',v:420},{n:'Tú · El Zaguán',v:380,me:true},{n:'Terraza Mina',v:310},{n:'Club Salvaje',v:260}];
+var bidList=document.getElementById('bidList'),bidStatus=document.getElementById('bidStatus'),bidN=document.getElementById('bidN');
+function paintBids(){
+  var sorted=BIDS.slice().sort(function(a,b){return b.v-a.v;});
+  var max=sorted[0].v;
+  bidList.innerHTML=sorted.map(function(b,i){
+    return '<div class="bidrow'+(b.me?' me':'')+'"><span class="r">'+(i+1)+'</span><span class="n">'+b.n+'</span>'+
+      '<span class="track"><i style="width:'+Math.round(b.v/max*100)+'%"></i></span><span class="v">'+money(b.v)+'</span></div>';
+  }).join('');
+  var pos=sorted.findIndex(function(b){return b.me;})+1;
+  var me=BIDS.filter(function(b){return b.me;})[0];
+  bidN.textContent=money(me.v);
+  if(pos===1){bidStatus.className='status-line win';bidStatus.textContent='● Ganando el slot destacado de Bares · Centro';}
+  else{bidStatus.className='status-line lose';bidStatus.textContent='● Posición #'+pos+' · sube a '+money(sorted[0].v+20)+' para tomar el slot';}
+}
+paintBids();
+document.getElementById('bidPlus').addEventListener('click',function(){
+  var me=BIDS.filter(function(b){return b.me;})[0];
+  me.v=Math.min(900,me.v+20);paintBids();
+  blog('cc','BID.SET','puja → '+money(me.v)+'/1k impresiones');
+});
+document.getElementById('bidMinus').addEventListener('click',function(){
+  var me=BIDS.filter(function(b){return b.me;})[0];
+  me.v=Math.max(100,me.v-20);paintBids();
+  blog('cc','BID.SET','puja → '+money(me.v)+'/1k impresiones');
+});
+setInterval(function(){
+  BIDS.forEach(function(b){if(!b.me)b.v=Math.max(120,Math.min(880,b.v+Math.round((Math.random()-.45)*60)));});
+  paintBids();
+},3000);
+
+/* flash deal launcher */
+var dealOff='-50%',dealStock=3,dealDur=15;
+function optGroup(el,items,cur,cb){
+  el.innerHTML=items.map(function(v){return '<button class="opt" aria-pressed="'+(v.val===cur)+'">'+v.lb+'</button>';}).join('');
+  Array.prototype.forEach.call(el.children,function(b,i){
+    b.addEventListener('click',function(){
+      Array.prototype.forEach.call(el.children,function(x){x.setAttribute('aria-pressed','false');});
+      b.setAttribute('aria-pressed','true');cb(items[i].val);
+    });
+  });
+}
+optGroup(document.getElementById('optOff'),[{val:'-30%',lb:'-30%'},{val:'-50%',lb:'-50%'},{val:'-70%',lb:'-70%'},{val:'2x1',lb:'2x1'}],dealOff,function(v){dealOff=v;});
+optGroup(document.getElementById('optStock'),[{val:1,lb:'1 cupón'},{val:3,lb:'3'},{val:10,lb:'10'},{val:25,lb:'25'}],dealStock,function(v){dealStock=v;});
+optGroup(document.getElementById('optDur'),[{val:15,lb:'15 s'},{val:30,lb:'30 s'},{val:60,lb:'60 s'}],dealDur,function(v){dealDur=v;});
+
+var claimFeed=document.getElementById('claimFeed'),claimEmpty=document.getElementById('claimEmpty');
+document.getElementById('btnLaunch').addEventListener('click',function(){
+  var btn=this;
+  btn.disabled=true;btn.innerHTML='<span class="spin" style="border-color:rgba(255,255,255,.3);border-top-color:#fff"></span> Enviando…';
+  claimEmpty.style.display='none';
+  claimFeed.className='claimfeed on';claimFeed.innerHTML='';
+  blog('cc','DEAL.LAUNCH',dealOff+' · stock '+dealStock+' · '+dealDur+'s · 1.240 destinatarios');
+
+  pendingDeal={em:'🍸',n:'Bar El Zaguán',off:dealOff,w:'lanzado desde el panel del negocio',stock:dealStock,dur:dealDur};
+  toast('⚡ Cupón enviado a 1.240 usuarios · cambia a «App del usuario» para verlo llegar');
+
+  var given=0,rejected=0,total=0,stock=dealStock;
+  var iv=setInterval(function(){
+    total++;
+    var n=rnd(NAMES),okNow=stock>0;
+    if(okNow){stock--;given++;}else rejected++;
+    var row=document.createElement('div');
+    row.className='cfrow';
+    row.innerHTML='<span class="st-pill '+(okNow?'ok':'no')+'">'+(okNow?'ENTREGADO':'RECHAZADO')+'</span>'+
+      '<span>'+n+'</span><span class="t">'+(12+Math.floor(Math.random()*70))+' ms</span>';
+    claimFeed.insertBefore(row,claimFeed.firstChild);
+    if(total>=dealStock+6){
+      clearInterval(iv);
+      btn.disabled=false;btn.innerHTML='⚡ Lanzar a 1.240 usuarios';
+      claimFeed.insertAdjacentHTML('afterbegin',
+        '<div class="summary"><div><div class="v">'+total+'</div><div class="l">Solicitudes</div></div>'+
+        '<div><div class="v">'+given+'</div><div class="l">Entregados</div></div>'+
+        '<div><div class="v">'+rejected+'</div><div class="l">Rechazados</div></div></div>');
+      blog('cc','DEAL.CLOSED',given+' entregados · '+rejected+' rechazados · stock 0');
+    }
+  },420);
+});
+
+})();
+</script>
+</body>
+</html>
