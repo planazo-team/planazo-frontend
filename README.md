@@ -8,13 +8,18 @@ Piloto en **Zona G y Zona T** — Chapinero, Bogotá · MVP de **8 semanas**.
 
 ## Estado del repositorio
 
-| Parte | Estado |
-|---|---|
-| `frontend/` | ✅ **Existe.** App del cliente y panel del negocio en Next.js, lista para Vercel |
-| `docs/` | ✅ **Existe.** Arquitectura propuesta y diagrama |
-| `services/*` | 🔲 Por construir — ver [arquitectura](#arquitectura) |
+Este repo (`planazo-frontend`) contiene el cliente y el panel del negocio. Cada servicio vive en su propio repositorio dentro de la organización [`planazo-team`](https://github.com/planazo-team), para que cada quien despliegue y trabaje sin bloquear a los demás:
 
-El frontend corre hoy **sin backend**: en modo `mock` simula los servicios en el navegador con los mismos mecanismos de concurrencia y reconexión. Cuando los servicios existan se cambia a modo `live` con una variable de entorno. Detalles en [`frontend/README.md`](frontend/README.md).
+| Repo | Servicio | Estado |
+|---|---|---|
+| `planazo-frontend` *(este)* | Next.js — cliente y panel | ✅ Existe |
+| [`planazo-api-gateway`](https://github.com/planazo-team/planazo-api-gateway) | Gateway + `agent` como módulo interno | 🔲 Por construir |
+| [`planazo-booking`](https://github.com/planazo-team/planazo-booking) | Cupos, reservas, eventos | 🔲 Por construir |
+| [`planazo-promo`](https://github.com/planazo-team/planazo-promo) | Promociones y cupones | 🔲 Por construir |
+| [`planazo-game`](https://github.com/planazo-team/planazo-game) | Minijuego Snake | 🔲 Por construir |
+| [`planazo-realtime`](https://github.com/planazo-team/planazo-realtime) | WebSocket, event log | 🔲 Por construir |
+
+El frontend corre hoy **sin backend**: en modo `mock` simula los servicios en el navegador con los mismos mecanismos de concurrencia y reconexión. Cuando cada servicio esté desplegado, se cambia a modo `live` apuntando a su URL real — ver [`frontend/README.md`](frontend/README.md).
 
 ---
 
@@ -129,26 +134,24 @@ Pauta, métricas del negocio, notificaciones push fuera de la app, reseñas, bil
 | Agente | Claude API con salida estructurada |
 | Pruebas de carga | k6 |
 | Gestión | Azure DevOps |
+| Despliegue de servicios | Railway — un proyecto con 5 servicios (gateway, booking, promo, game, realtime), cada uno con su Postgres/Redis |
+| Despliegue del frontend | Vercel — importa `planazo-frontend`, Root Directory = `frontend` |
 
 ---
 
 ## Estructura objetivo
 
 ```
-planazo/
-├── frontend/             ✅ Next.js — cliente y panel del negocio
-├── services/
-│   ├── api-gateway/      🔲
-│   ├── booking/          🔲
-│   ├── promo/            🔲
-│   ├── game/             🔲
-│   ├── realtime/         🔲
-│   └── agent/            🔲  (empieza como módulo del gateway)
-├── docs/                 ✅ arquitectura y diagrama
-└── docker-compose.yml    🔲 levanta todo con un solo comando
+planazo-team/                    (organización de GitHub)
+├── planazo-frontend/    ✅ Next.js — cliente y panel del negocio (este repo)
+├── planazo-api-gateway/ 🔲 Entrada HTTP + `agent` como módulo interno
+├── planazo-booking/     🔲 Cupos, reservas, eventos
+├── planazo-promo/       🔲 Promociones y cupones
+├── planazo-game/        🔲 Minijuego Snake
+└── planazo-realtime/    🔲 WebSocket, event log
 ```
 
-Un solo repositorio y un `docker-compose up`. Sin CI/CD independiente por servicio ni repos separados: es lo que encarece los microservicios y no aporta nada al MVP.
+Un repo por servicio: cada quien despliega el suyo en Railway sin bloquear a los demás, y el CI/CD de uno no tumba el de otro. `agent` no tiene repo propio — arranca como módulo dentro de `planazo-api-gateway`, tal como describe la sección de arquitectura, y se puede extraer después si sobra tiempo.
 
 ---
 
@@ -173,6 +176,15 @@ npm install
 npm run dev
 ```
 
-Abre `http://localhost:3000` y entra como cliente o como establecimiento. No necesita backend ni variables de entorno.
+Abre `http://localhost:3000` y entra como cliente o como establecimiento. Por defecto corre en modo `mock`, sin backend ni variables de entorno.
 
-**Desplegar en Vercel:** importa el repositorio y define **Root Directory = `frontend`**. Vercel detecta Next.js solo. Pasos completos y contrato con el backend en [`frontend/README.md`](frontend/README.md).
+**Modo `live`:** cuando `planazo-api-gateway`, `planazo-game` y `planazo-realtime` estén desplegados en Railway, apunta el frontend a sus URLs reales:
+
+```bash
+NEXT_PUBLIC_API_MODE=live
+NEXT_PUBLIC_API_URL=https://<tu-api-gateway>.up.railway.app
+NEXT_PUBLIC_REALTIME_URL=wss://<tu-realtime>.up.railway.app/ws
+NEXT_PUBLIC_GAME_URL=wss://<tu-game>.up.railway.app
+```
+
+**Desplegar en Vercel:** importa `planazo-frontend` y define **Root Directory = `frontend`**. Vercel detecta Next.js solo; agrega ahí las mismas variables de entorno para modo `live`. Pasos completos y contrato con el backend en [`frontend/README.md`](frontend/README.md).
