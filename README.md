@@ -38,7 +38,7 @@ El frontend corre hoy **sin backend**: en modo `mock` simula los servicios en el
 
 ## Arquitectura
 
-**Cinco microservicios más un gateway de entrada.** Diagrama completo: [`docs/arquitectura.html`](docs/arquitectura.html) · especificación detallada: [`docs/arquitectura.md`](docs/arquitectura.md).
+**Cinco microservicios más un gateway de entrada.** Contexto completo del proyecto: [`docs/contexto.md`](docs/contexto.md) · diagrama: [`docs/arquitectura.html`](docs/arquitectura.html) · especificación por servicio: [`docs/arquitectura.md`](docs/arquitectura.md).
 
 ### El criterio de corte
 
