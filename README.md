@@ -10,16 +10,32 @@ Piloto en **Zona G y Zona T** — Chapinero, Bogotá · MVP de **8 semanas**.
 
 Este repo (`planazo-frontend`) contiene el cliente y el panel del negocio. Cada servicio vive en su propio repositorio dentro de la organización [`planazo-team`](https://github.com/planazo-team), para que cada quien despliegue y trabaje sin bloquear a los demás:
 
-| Repo | Servicio | Estado |
-|---|---|---|
-| `planazo-frontend` *(este)* | Next.js — cliente y panel | ✅ Existe |
-| [`planazo-api-gateway`](https://github.com/planazo-team/planazo-api-gateway) | Gateway + `agent` como módulo interno | 🔲 Por construir |
-| [`planazo-booking`](https://github.com/planazo-team/planazo-booking) | Cupos, reservas, eventos | 🔲 Por construir |
-| [`planazo-promo`](https://github.com/planazo-team/planazo-promo) | Promociones y cupones | 🔲 Por construir |
-| [`planazo-game`](https://github.com/planazo-team/planazo-game) | Minijuego Snake | 🔲 Por construir |
-| [`planazo-realtime`](https://github.com/planazo-team/planazo-realtime) | WebSocket, event log | 🔲 Por construir |
+| Repo | Servicio | Dueño | Estado |
+|---|---|---|---|
+| `planazo-frontend` *(este)* | Next.js — cliente y panel · **docs del proyecto** | Juan Diego | ✅ Funciona en `mock`; CI y Dockerfile |
+| [`planazo-api-gateway`](https://github.com/planazo-team/planazo-api-gateway) | Entrada HTTP + `agent` como módulo interno | Juan Diego | ✅ Probado en local y Docker; falta Railway |
+| [`planazo-booking`](https://github.com/planazo-team/planazo-booking) | Cupos, reservas, eventos | Fabián | 🟡 Esqueleto desde la plantilla |
+| [`planazo-promo`](https://github.com/planazo-team/planazo-promo) | Promociones y cupones | Fabián | 🟡 Con código; alinear al contrato |
+| [`planazo-game`](https://github.com/planazo-team/planazo-game) | Minijuego Snake | Diego Rozo | 🟡 Esqueleto desde la plantilla |
+| [`planazo-realtime`](https://github.com/planazo-team/planazo-realtime) | WebSocket, event log | Juan Camilo | 🟡 Esqueleto desde la plantilla |
+| [`planazo-infra`](https://github.com/planazo-team/planazo-infra) | Compose local, k6, contratos, Bruno | Juan Diego | ✅ |
+| [`planazo-service-template`](https://github.com/planazo-team/planazo-service-template) | Plantilla NestJS de los servicios | Juan Diego | ✅ |
+| [`.github`](https://github.com/planazo-team/.github) | Plantillas de PR e issues de la org | Juan Diego | ✅ |
 
 El frontend corre hoy **sin backend**: en modo `mock` simula los servicios en el navegador con los mismos mecanismos de concurrencia y reconexión. Cuando cada servicio esté desplegado, se cambia a modo `live` apuntando a su URL real — ver [`frontend/README.md`](frontend/README.md).
+
+### Documentación del proyecto
+
+Vive en [`docs/`](docs/) de este repo y aplica a toda la organización:
+
+| Documento | Para qué |
+|---|---|
+| [`contexto.md`](docs/contexto.md) | **Empieza aquí.** Producto, equipo, retos, contratos, seed, estado, cómo correr y desplegar. Si contradice a otro, este manda. |
+| [`dominios.md`](docs/dominios.md) | Los siete dominios: qué posee cada servicio, sus invariantes, qué publica y qué no hace. |
+| [`diagramas.md`](docs/diagramas.md) | Contexto, componentes, despliegue, secuencias de los seis retos, modelo de datos, repos. |
+| [`arquitectura.md`](docs/arquitectura.md) | Especificación por servicio: datos, API, eventos y mecanismo de cada reto. |
+| [`seguridad.md`](docs/seguridad.md) | Qué se protege, con qué, y qué se deja abierto a propósito. |
+| [`plan-organizacion.md`](docs/plan-organizacion.md) | Diagnóstico, reglas de la organización, cronograma de 8 semanas y decisiones pendientes. |
 
 ---
 
@@ -142,16 +158,21 @@ Pauta, métricas del negocio, notificaciones push fuera de la app, reseñas, bil
 ## Estructura objetivo
 
 ```
-planazo-team/                    (organización de GitHub)
-├── planazo-frontend/    ✅ Next.js — cliente y panel del negocio (este repo)
-├── planazo-api-gateway/ 🔲 Entrada HTTP + `agent` como módulo interno
-├── planazo-booking/     🔲 Cupos, reservas, eventos
-├── planazo-promo/       🔲 Promociones y cupones
-├── planazo-game/        🔲 Minijuego Snake
-└── planazo-realtime/    🔲 WebSocket, event log
+planazo-team/                      (organización de GitHub)
+├── planazo-frontend/          Next.js — cliente y panel del negocio + docs/ (este repo)
+├── planazo-api-gateway/       Entrada HTTP + `agent` como módulo interno
+├── planazo-booking/           Cupos, reservas, eventos
+├── planazo-promo/             Promociones y cupones
+├── planazo-game/              Minijuego Snake
+├── planazo-realtime/          WebSocket, event log
+├── planazo-infra/             docker compose · k6 · contratos · Bruno
+├── planazo-service-template/  plantilla NestJS de los servicios
+└── .github/                   plantillas de PR e issues de toda la org
 ```
 
 Un repo por servicio: cada quien despliega el suyo en Railway sin bloquear a los demás, y el CI/CD de uno no tumba el de otro. `agent` no tiene repo propio — arranca como módulo dentro de `planazo-api-gateway`, tal como describe la sección de arquitectura, y se puede extraer después si sobra tiempo.
+
+En todos los repos `main` está protegida: se entra por PR con una aprobación y el check `ci` verde, con squash merge. Cada repo tiene `CODEOWNERS` con su dueño y Dependabot semanal. Detalle en [`docs/plan-organizacion.md`](docs/plan-organizacion.md).
 
 ---
 

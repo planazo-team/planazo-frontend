@@ -1,0 +1,6 @@
+# GitHub pide revisión automática al dueño en cada PR.
+*                         @juandiegomelo21-commits
+# El contrato y la documentación de arquitectura los revisa el integrador.
+/frontend/src/lib/types.ts       @juandiegomelo21-commits
+/frontend/src/lib/api/types.ts   @juandiegomelo21-commits
+/docs/                           @juandiegomelo21-commits

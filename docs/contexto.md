@@ -2,8 +2,12 @@
 
 Todo lo que alguien necesita saber para entrar al proyecto sin tener que preguntar. Si algo aquí contradice a otro documento, **este manda**, y hay que corregir el otro.
 
+- **Dominios y fronteras:** [`dominios.md`](dominios.md) — qué posee cada servicio y quién es su dueño.
+- **Diagramas:** [`diagramas.md`](diagramas.md) — contexto, componentes, despliegue, secuencias de los seis retos, modelo de datos.
 - **Especificación técnica por servicio:** [`arquitectura.md`](arquitectura.md) y el README de cada repo.
-- **Estado en vivo:** el panel de arquitectura del equipo (link en el canal del grupo).
+- **Seguridad:** [`seguridad.md`](seguridad.md) — qué se protege, con qué, y qué se deja abierto a propósito.
+- **Organización y cronograma:** [`plan-organizacion.md`](plan-organizacion.md).
+- **Contrato ejecutable:** `frontend/src/lib/types.ts` y `api/types.ts` en este repo; tabla en `planazo-infra/contracts/`.
 
 ---
 
@@ -63,6 +67,14 @@ Organización: [`planazo-team`](https://github.com/planazo-team). Un repo por se
 | [`planazo-promo`](https://github.com/planazo-team/planazo-promo) | Promociones y cupones | `3002` |
 | [`planazo-game`](https://github.com/planazo-team/planazo-game) | Snake multijugador | `3003` / WS `8082` |
 | [`planazo-realtime`](https://github.com/planazo-team/planazo-realtime) | WebSocket y event log | WS `8081` |
+
+Y tres repos de apoyo, sin lógica de negocio:
+
+| Repo | Qué es |
+|---|---|
+| [`planazo-infra`](https://github.com/planazo-team/planazo-infra) | `docker compose` para levantar todo en local, pruebas k6 de los retos, contratos (`http.md`, `events.schema.json`), colección Bruno |
+| [`planazo-service-template`](https://github.com/planazo-team/planazo-service-template) | Plantilla NestJS con `/health`, guard de `x-gateway-key`, identidad por headers, publicador del bus, Dockerfile y CI. Los servicios nuevos arrancan de aquí |
+| [`.github`](https://github.com/planazo-team/.github) | Plantillas de PR e issues y portada de la organización, aplicadas a todos los repos |
 
 **`agent` no tiene repo propio.** Es un módulo dentro del gateway: no tiene estado, no implementa ningún reto, y es la única pieza recortable del proyecto. Extraerlo después es medio día de trabajo; fusionar dos servicios ya desplegados, no.
 
@@ -130,6 +142,22 @@ Por eso:
 
 **Regla inviolable:** ningún servicio escribe en la base de datos de otro, y ningún servicio le dice a otro qué hacer — solo publica lo que le pasó.
 
+### Los dominios
+
+Cada servicio implementa **un dominio** con fronteras explícitas: qué términos usa, qué agregados guarda, qué invariantes nunca rompe, qué expone y qué publica. La ficha de cada uno está en [`dominios.md`](dominios.md). Resumen:
+
+| Dominio | Servicio | Posee | Invariante que lo define |
+|---|---|---|---|
+| Identidad y acceso | `api-gateway` | usuarios semilla, token | un negocio administra exactamente un establecimiento |
+| Catálogo y disponibilidad | `booking` | establecimientos, franjas, reservas, eventos del negocio | `taken ≤ capacity`, siempre |
+| Promociones | `promo` | promociones, stock, cupones | cupones emitidos `≤ initialStock` |
+| Juego | `game` | salas, partidas, marcador | solo el servidor mueve; el marcador solo sube |
+| Difusión y memoria | `realtime` | event log, suscripciones | `seq` estrictamente creciente; `RESUME` sin pérdida ni duplicados |
+| Planificación | módulo `agent` | nada (sin estado) | solo lugares del catálogo; nunca reserva |
+| Experiencia | `frontend` | el contrato ejecutable | ante `409` relee y explica |
+
+Los datos que varios necesitan leer (nombre y zona de los 12 lugares, nombre del usuario) se resuelven por **copia de lectura desde el mismo seed** o por header (`x-user-name`), no por llamadas entre servicios. Detalle en `dominios.md` §3.
+
 ---
 
 ## 6 · Contratos entre piezas
@@ -149,8 +177,23 @@ El gateway recibe todo bajo `/api` y **quita ese prefijo** al reenviar:
 | `/api/rooms*` | `/rooms*` | game |
 | `/api/plan` | — | el módulo `agent`, dentro del gateway |
 | `/api/auth/demo` | — | el propio gateway |
+| `/api/health` | — | el propio gateway (sin token) |
 
-**Cada servicio expone sus rutas SIN `/api`.**
+**Cada servicio expone sus rutas SIN `/api`** y además `GET /health` sin auth.
+
+**Todo lo que viaja por HTTP y WebSocket va en `camelCase`** (`slotId`, `durationS`, `placeId`), tal como lo envía el frontend. Cuerpos exactos:
+
+| Llamada | Request | Response |
+|---|---|---|
+| `POST /api/reservations` | `{ slotId, people, version }` | `Reservation` · `409 VERSION_CONFLICT` / `SIN_CUPO` |
+| `PATCH /api/places/:id/slots/:sid` | `{ capacity, version }` | `Slot` · `409 VERSION_CONFLICT` / `CAPACIDAD_MENOR` |
+| `POST /api/events` | `{ placeId, title, startsAt, capacity }` | `PlaceEvent` |
+| `POST /api/promos` | `{ placeId, title, discount, stock, durationS }` | `Promo` |
+| `POST /api/promos/:id/claim` | — | `Coupon` · `409 PROMO_AGOTADA` / `PROMO_VENCIDA` |
+| `POST /api/plan` | `{ text }` | `PlanResult { intro, stops: [{ placeId, placeName, category, hour, why }] }` |
+| `POST /api/rooms` · `/join` · `/start` | — | `Room` · `404 SALA_NO_EXISTE` · `409 SALA_EN_JUEGO` / `JUGADORES_INSUFICIENTES` |
+
+Las formas de `Reservation`, `Slot`, `Promo`, `Coupon`, `Room`, etc. están en `frontend/src/lib/types.ts`. La tabla completa, en `planazo-infra/contracts/http.md`.
 
 ### 6.2 Identidad
 
@@ -159,8 +202,12 @@ El gateway valida el JWT una sola vez y pasa la identidad en headers. **Ningún 
 | Header | Contenido |
 |---|---|
 | `x-user-id` | `u1`…`u6` (cliente), `b1`,`b2`,`b3` (negocio) |
+| `x-user-name` | nombre para mostrar, URL-encoded (`Juan%20Diego`). Lo usan `booking` (reserva) y `game` (jugador) |
 | `x-user-role` | `cliente` \| `negocio` |
 | `x-user-place-id` | solo negocio: el establecimiento que administra |
+| `x-gateway-key` | secreto compartido `GATEWAY_KEY`. El servicio rechaza con `401 GATEWAY_KEY_INVALIDA` lo que no lo traiga |
+
+El gateway **sobrescribe** estos headers con lo que dice el token; lo que mande el cliente con esos nombres se descarta. La llave existe para que nadie pueda saltarse el gateway e inventarse una identidad, aunque conozca la URL de un servicio. Ver [`seguridad.md`](seguridad.md).
 
 **Excepción:** `game` y `realtime` sí verifican el JWT ellos mismos, porque sus WebSockets no pasan por el gateway. Usan el **mismo `JWT_SECRET`**, y reciben el token **en el primer mensaje del socket**, nunca por query string.
 
@@ -171,8 +218,10 @@ El gateway reenvía el status tal cual. Los códigos que el frontend entiende:
 | Código | Significado | Lo devuelve |
 |---|---|---|
 | `409` | El recurso se agotó o alguien lo cambió mientras decidías | booking (CC-3), promo (CC-1), game (sala llena) |
-| `401` | Falta token o está vencido | gateway |
-| `502` | El servicio destino no respondió | gateway |
+| `401` | Falta token o está vencido; o falta `x-gateway-key` | gateway; cualquier servicio |
+| `403` | El rol no puede hacer eso (`ROL_NO_AUTORIZADO`) | cualquier servicio |
+| `429` | Demasiadas peticiones por minuto (`RATE_LIMIT`) | gateway |
+| `502` | El servicio destino no respondió (`SERVICIO_NO_DISPONIBLE`) | gateway |
 
 Cuerpo esperado en los errores: `{ code, message }` con un `message` que el usuario pueda leer. **El `409` es criterio de aceptación de las historias, no un fallo a ocultar.**
 
@@ -187,7 +236,13 @@ Cuerpo esperado en los errores: `{ code, message }` con un `message` que el usua
 | `PROMO.WON` · `PROMO.REJECTED` | promo | el usuario y el panel del negocio |
 | `ROOM.JOIN` · `SNAKE.SCORE` · `ROUND.END` | game | la sala |
 
-Todos pasan por el bus y llegan al cliente a través de `realtime`.
+Todos pasan por el bus y llegan al cliente a través de `realtime`. El productor publica al canal Redis `planazo.events` este **sobre**:
+
+```json
+{ "id": "uuid-v4", "type": "PROMO.PUSH", "topics": ["zone:zona-t"], "payload": { "id": "pr-1", "placeId": "p7", "placeName": "Bar El Zaguán", "zone": "zona-t", "title": "2x1 en cócteles", "discount": "2x1", "stock": 10, "initialStock": 10, "expiresAt": 1727280120000 }, "at": 1727280000000 }
+```
+
+`seq` **no lo pone el productor**: lo asigna `realtime` al persistir y el cliente lo recibe como `RtEvent { seq, id, type, payload, topics, at }`. Tópicos válidos: `zone:<zona>`, `place:<id>`, `user:<id>`, `room:<código>`. **El payload va plano**: `PROMO.PUSH` lleva la `Promo` tal cual, `RESERVE.OK` la `Reservation` tal cual; así los consume el frontend. Payload de cada tipo en `arquitectura.md` y en `planazo-infra/contracts/events.schema.json`.
 
 ---
 
@@ -229,10 +284,12 @@ Zonas: `zona-g` (centro `4.6553, -74.0566`), `zona-t` (centro `4.6672, -74.0536`
 
 | Pieza | Estado |
 |---|---|
-| `frontend` | **Existe y funciona.** Modo `mock` completo: simula los 5 servicios en el navegador, con concurrencia y reconexión simuladas. Falta desplegar en Vercel. |
-| `api-gateway` | **Existe y está probado en local.** Auth demo, proxy, rate limit, módulo `agent` con fallback a plantilla. Falta desplegar en Railway. |
-| `booking`, `promo`, `game`, `realtime` | Repos creados, **sin código**. |
-| Conexión frontend ↔ gateway | **Probada de punta a punta** en local: login real, token emitido, rutas protegidas respondiendo. |
+| `frontend` | **Existe y funciona.** Modo `mock` completo: simula los 5 servicios en el navegador, con concurrencia y reconexión simuladas. CI y Dockerfile listos. Falta desplegar en Vercel. |
+| `api-gateway` | **Existe y está probado en local y en Docker.** Auth demo, proxy con `x-gateway-key` y `x-user-name`, CORS con lista blanca, rate limit, `/api/health`, módulo `agent` con el contrato `PlanResult` y fallback a plantilla. CI y Dockerfile listos. Falta desplegar en Railway. |
+| `promo` | **Tiene código de Fabián** (Express) que hay que alinear al contrato: sacar la UI, stock en Redis, publicar al bus, nombres en camelCase. La lista está en el issue del repo. CI agregado. |
+| `booking`, `game`, `realtime` | **Esqueleto desde la plantilla:** `/health`, guard de la llave, identidad, bus, Dockerfile y CI. Sin lógica de dominio todavía. |
+| `planazo-infra` | **Existe.** Compose con Redis y tres Postgres, k6 de los cuatro retos de concurrencia/reconexión, contratos, colección Bruno. |
+| Conexión frontend ↔ gateway | **Probada de punta a punta** en local: login real, token emitido, rutas protegidas respondiendo, CORS bloqueando orígenes ajenos. |
 
 ### El modo `mock` es el andamio
 
@@ -247,24 +304,36 @@ Se cambia a `live` con variables de entorno, **sin tocar código**.
 
 ## 10 · Correr todo en local
 
+Todo vive como repos hermanos en una misma carpeta. `planazo-infra` los orquesta:
+
 ```bash
-# 1 · frontend  (siempre funciona solo, en modo mock)
-cd planazo-frontend/frontend && npm install && npm run dev    # :3000
+# 0 · una sola vez: clonar todo y preparar secretos locales
+gh repo clone planazo-team/planazo-infra && cd planazo-infra
+./scripts/clone-all.sh                # clona los demás repos al lado
+cp .env.example .env                  # JWT_SECRET y GATEWAY_KEY locales
 
-# 2 · gateway
-cd planazo-api-gateway && npm install && npm run start:dev    # :8080
+# 1 · infraestructura (Redis + 3 Postgres) en contenedores
+./scripts/up.sh
 
-# 3 · conectar el frontend al gateway real
+# 2 · tu servicio, en caliente, en su puerto
+cd ../planazo-booking && cp .env.example .env && npm install && npm run start:dev    # :3001
+
+# 3 · todo lo demás en contenedores (o también en caliente, cada quien el suyo)
+cd ../planazo-infra && ./scripts/up-all.sh
+./scripts/status.sh                   # /health de cada uno + login de prueba
+
+# 4 · frontend contra el gateway real
 #    planazo-frontend/frontend/.env.local
 NEXT_PUBLIC_API_MODE=live
 NEXT_PUBLIC_API_URL=http://localhost:8080
 NEXT_PUBLIC_REALTIME_URL=ws://localhost:8081/ws
 NEXT_PUBLIC_GAME_URL=ws://localhost:8082
+cd ../planazo-frontend/frontend && npm install && npm run dev    # :3000
 ```
 
-Con solo esos dos arriba, el login funciona y las rutas de datos responden `502` controlado — que es lo correcto mientras los servicios no existan, y así se ve qué falta.
+El frontend solo, sin nada más, siempre funciona en modo `mock`. Con gateway y frontend arriba, el login funciona y las rutas de datos responden `502` controlado — que es lo correcto mientras los servicios no existan, y así se ve qué falta.
 
-Cada servicio que se sume levanta en su puerto y se agrega a las variables del gateway (`BOOKING_URL`, `PROMO_URL`, `GAME_URL`).
+`GATEWAY_KEY` y `JWT_SECRET` deben ser **los mismos** en el `.env` de infra y en el de cada servicio que corras en caliente; si no, el gateway recibirá `401 GATEWAY_KEY_INVALIDA` de tu servicio.
 
 ---
 
@@ -279,7 +348,13 @@ Cada servicio que se sume levanta en su puerto y se agrega a las variables del g
 | `game` | Railway + Redis | HTTP → `GAME_URL` del gateway · WS → `NEXT_PUBLIC_GAME_URL` |
 | `realtime` | Railway + PostgreSQL + Redis | WS → `NEXT_PUBLIC_REALTIME_URL` del frontend |
 
-`game` y `realtime` corren en **una sola instancia** por ahora: tienen estado en memoria (salas, suscripciones) y varias instancias lo repartirían mal.
+Reglas del despliegue (diagrama en `diagramas.md` §3):
+
+- **Un solo proyecto de Railway** con los 5 servicios. `JWT_SECRET`, `GATEWAY_KEY` y `BUS_URL` como **variables compartidas** del proyecto: se generan con `openssl rand -hex 32` y no se pasan por chat.
+- `booking` y `promo` **sin dominio público**: el gateway los alcanza por la red privada (`http://booking.railway.internal:3001`). `game` y `realtime` sí tienen dominio público por el WebSocket.
+- `game` y `realtime` corren en **una sola instancia**: tienen estado en memoria (salas, suscripciones) y varias instancias lo repartirían mal.
+- `ALLOWED_ORIGINS` del gateway = la URL de Vercel. `NODE_ENV=production` para que el gateway exija secretos reales.
+- Cada push a `main` despliega. Por eso `main` está protegida: PR, 1 aprobación y CI verde.
 
 ---
 
