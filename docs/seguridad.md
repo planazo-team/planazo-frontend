@@ -82,11 +82,11 @@ Todas las respuestas de error son `{ code, message }` con un mensaje para el usu
 |---|---|---|
 | Permiso base de la organización en `write` (no `admin`) | borrar repos o cambiar visibilidad por accidente | ⚠️ requiere owner desde la web |
 | Cada dueño `admin` solo en su repo | ídem | ✅ |
-| **Protección de `main`** en los 9 repos: PR obligatorio, 1 aprobación, check `ci` verde, sin force push, sin borrar, admins incluidos | push directo, merges sin revisar, código que no compila | ✅ |
-| Solo **squash merge**, borrar rama al merge | historial ilegible, ramas huérfanas | ✅ |
-| **CODEOWNERS** en cada repo | que un cambio al servicio de alguien se apruebe sin que se entere | ✅ |
-| **Dependabot** alertas y actualizaciones de seguridad | dependencias con CVE conocidas | ✅ |
-| **Secret scanning + push protection** | subir una llave por accidente | ✅ en repos públicos (gratis); en privados requiere plan de pago |
+| **Protección de `main`**: PR obligatorio, 1 aprobación, check `ci` verde, sin force push, sin borrar, admins incluidos | push directo, merges sin revisar, código que no compila | ✅ en `planazo-frontend` y `.github` (públicos) · ⚠️ **no disponible en los 7 repos privados con el plan gratuito**; requiere hacerlos públicos o GitHub Pro |
+| Solo **squash merge**, borrar rama al merge | historial ilegible, ramas huérfanas | ✅ en los 9 |
+| **CODEOWNERS** en cada repo | que un cambio al servicio de alguien se apruebe sin que se entere | ✅ (solo se hace cumplir donde hay protección de rama) |
+| **Dependabot** alertas y actualizaciones de seguridad | dependencias con CVE conocidas | ✅ en los 9 |
+| **Secret scanning + push protection** | subir una llave por accidente | ✅ por defecto para repos nuevos públicos; en privados requiere plan de pago |
 | 2FA obligatorio en la organización | cuentas robadas | ⚠️ requiere owner desde la web |
 | CI construye la imagen Docker | que `main` no sea desplegable | ✅ |
 

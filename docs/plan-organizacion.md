@@ -20,8 +20,8 @@ Lo que ya quedó aplicado el mismo día del diagnóstico:
 | **Frontend** | CI (typecheck + build), Dockerfile para el compose, CODEOWNERS, Dependabot | Desplegar en Vercel; completar `promos` de la ficha desde `/api/promos` en modo `live` |
 | **booking · game · realtime** | Esqueleto desde la plantilla con su puerto, dueño y CI | Toda la lógica de dominio, por sus dueños |
 | **promo** | CI, CODEOWNERS, Dependabot, `.env` ignorado; issue con las 7 correcciones | Las correcciones (§6), por Fabián |
-| **Protección de `main`** | PR + 1 aprobación + check `ci` + sin force push, admins incluidos; squash merge; borrar rama al merge, en los 9 repos | — |
-| **Decisiones del equipo** (§9) | — | Visibilidad, herramienta de historias, Express en promo. Se tomaron por defecto: repos nuevos privados salvo `.github`; 1 aprobación obligatoria |
+| **Protección de `main`** | Squash merge y borrar rama al merge en los 9 repos. Protección (PR + 1 aprobación + check `ci` + sin force push, admins incluidos) aplicada en `planazo-frontend` y `.github` | **Los 7 repos privados no admiten protección de rama en el plan gratuito de GitHub** (responde `403: Upgrade to GitHub Pro or make this repository public`). Hay que decidir §9.1: hacerlos públicos y correr `bash /tmp/protect.sh <repo>` (script en §8), o quedarse sin protección |
+| **Decisiones del equipo** (§9) | — | **Visibilidad (bloquea la protección de rama)**, herramienta de historias, Express en promo. Se tomaron por defecto: repos nuevos privados salvo `.github`; 1 aprobación obligatoria |
 
 ---
 
@@ -311,7 +311,7 @@ Ojo: exigir el check `ci` **antes** de que el workflow exista bloquea todos los 
 
 | # | Decisión | Recomendación |
 |---|---|---|
-| 1 | ¿Repos públicos o privados? | **Todos públicos.** Es un proyecto académico, facilita que los evaluadores lo vean y Vercel/Railway gratuitos no ponen trabas. Si hay razón para privado, entonces todos privados, incluido el frontend. |
+| 1 | ¿Repos públicos o privados? | **Todos públicos.** Es un proyecto académico, facilita que los evaluadores lo vean y Vercel/Railway gratuitos no ponen trabas. **Además es la única forma de tener protección de `main` y secret scanning sin pagar GitHub Pro:** en el plan gratuito, los repos privados no admiten reglas de rama. El historial de los 7 repos ya se escaneó y no contiene secretos ni `.env`. Si hay razón para privado, entonces todos privados, incluido el frontend, y se acepta trabajar sin protección de rama. |
 | 2 | ¿Azure DevOps o GitHub Projects para las historias? | **GitHub Projects** (un tablero a nivel org con las 25 historias, cada una un issue en su repo). Tener el tablero al lado del código evita mantener dos sitios. Si la materia exige Azure DevOps, entonces Azure para historias y GitHub solo para código, sin duplicar. |
 | 3 | ¿`promo` se reescribe en NestJS o se queda en Express? | **Se queda en Express** si Fabián aplica las correcciones de §6 esta semana. El stack no es el reto; el mecanismo sí. |
 | 4 | ¿1 aprobación obligatoria en PRs? | **Sí.** Cuesta 10 minutos por PR y es lo único que habría detectado los desvíos de `promo` a tiempo. |

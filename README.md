@@ -172,7 +172,7 @@ planazo-team/                      (organización de GitHub)
 
 Un repo por servicio: cada quien despliega el suyo en Railway sin bloquear a los demás, y el CI/CD de uno no tumba el de otro. `agent` no tiene repo propio — arranca como módulo dentro de `planazo-api-gateway`, tal como describe la sección de arquitectura, y se puede extraer después si sobra tiempo.
 
-En todos los repos `main` está protegida: se entra por PR con una aprobación y el check `ci` verde, con squash merge. Cada repo tiene `CODEOWNERS` con su dueño y Dependabot semanal. Detalle en [`docs/plan-organizacion.md`](docs/plan-organizacion.md).
+La regla es entrar a `main` por PR con una aprobación y el check `ci` verde, con squash merge. Hoy GitHub la hace cumplir en los repos públicos (`planazo-frontend`, `.github`); en los privados el plan gratuito no permite protección de rama, así que ahí es convención hasta que el equipo decida la visibilidad. Cada repo tiene `CODEOWNERS` con su dueño y Dependabot semanal. Detalle en [`docs/plan-organizacion.md`](docs/plan-organizacion.md).
 
 ---
 
