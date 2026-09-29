@@ -284,10 +284,10 @@ Zonas: `zona-g` (centro `4.6553, -74.0566`), `zona-t` (centro `4.6672, -74.0536`
 
 | Pieza | Estado |
 |---|---|
-| `frontend` | **Existe y funciona.** Modo `mock` completo: simula los 5 servicios en el navegador, con concurrencia y reconexión simuladas. CI y Dockerfile listos. Falta desplegar en Vercel. |
-| `api-gateway` | **Existe y está probado en local y en Docker.** Auth demo, proxy con `x-gateway-key` y `x-user-name`, CORS con lista blanca, rate limit, `/api/health`, módulo `agent` con el contrato `PlanResult` y fallback a plantilla. CI y Dockerfile listos. Falta desplegar en Railway. |
+| `frontend` | **Existe y funciona.** Modo `mock` completo: simula los 5 servicios en el navegador, con concurrencia y reconexión simuladas. En `live`, la ficha del lugar completa `promos` con `GET /api/promos?zone=` filtrando por `placeId`, porque `booking` responde `promos: []`. Next 16.3.7. CI y Dockerfile listos. Falta desplegar en Vercel. |
+| `api-gateway` | **Existe y está probado en local y en Docker.** Auth demo, proxy con `x-gateway-key` y `x-user-name`, CORS con lista blanca, rate limit, `/api/health`, módulo `agent` con el contrato `PlanResult` y fallback a plantilla. NestJS 11 sobre Express 5. CI, Dockerfile y `railway.json` (health check en `/api/health`) listos. Falta desplegar en Railway. |
 | `promo` | **Tiene código de Fabián** (Express) que hay que alinear al contrato: sacar la UI, stock en Redis, publicar al bus, nombres en camelCase. La lista está en el issue del repo. CI agregado. |
-| `booking`, `game`, `realtime` | **Esqueleto desde la plantilla:** `/health`, guard de la llave, identidad, bus, Dockerfile y CI. Sin lógica de dominio todavía. |
+| `booking`, `game`, `realtime` | **Esqueleto desde la plantilla:** `/health`, guard de la llave, identidad, bus, Dockerfile, CI y `railway.json`. NestJS 11.2.6 con `npm audit` limpio. Sin lógica de dominio todavía. |
 | `planazo-infra` | **Existe.** Compose con Redis y tres Postgres, k6 de los cuatro retos de concurrencia/reconexión, contratos, colección Bruno. |
 | Conexión frontend ↔ gateway | **Probada de punta a punta** en local: login real, token emitido, rutas protegidas respondiendo, CORS bloqueando orígenes ajenos. |
 

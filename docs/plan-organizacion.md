@@ -17,11 +17,41 @@ Lo que ya quedó aplicado el mismo día del diagnóstico:
 | **Organización** | Permiso base `write`; cada dueño `admin` en su repo; Diego Rozo `admin` en `planazo-game`; Dependabot alerts + security fixes en todos los repos; secret scanning y push protection por defecto para repos nuevos; 14 etiquetas comunes en los 9 repos | Que Diego Rozo acepte la invitación a la org; 2FA obligatorio y bloquear que miembros borren repos o cambien visibilidad (solo desde la web, Settings de la org) |
 | **Repos nuevos** | `.github` (plantillas de PR e issues, portada), `planazo-service-template` (NestJS, health, guard de la llave, identidad, bus, Dockerfile, CI, 17 tests), `planazo-infra` (compose con Redis y 3 Postgres verificado, 4 k6, contratos, Bruno) | — |
 | **Gateway** | CORS con lista blanca, `x-gateway-key` y `x-user-name` hacia los servicios, `/api/health`, timeout a upstreams, arranque rechazado en producción sin secretos, contrato `PlanResult` del agente, Dockerfile, CI, CODEOWNERS, Dependabot | Desplegar en Railway |
-| **Frontend** | CI (typecheck + build), Dockerfile para el compose, CODEOWNERS, Dependabot | Desplegar en Vercel; completar `promos` de la ficha desde `/api/promos` en modo `live` |
+| **Frontend** | CI (typecheck + build), Dockerfile para el compose, CODEOWNERS, Dependabot. La ficha en `live` completa `promos` desde `/api/promos` (29 sep) | Desplegar en Vercel |
 | **booking · game · realtime** | Esqueleto desde la plantilla con su puerto, dueño y CI | Toda la lógica de dominio, por sus dueños |
 | **promo** | CI, CODEOWNERS, Dependabot, `.env` ignorado; issue con las 7 correcciones | Las correcciones (§6), por Fabián |
 | **Protección de `main`** | Squash merge y borrar rama al merge en los 9 repos. Protección (PR + 1 aprobación + check `ci` + sin force push, admins incluidos) aplicada en `planazo-frontend` y `.github` | **Los 7 repos privados no admiten protección de rama en el plan gratuito de GitHub** (responde `403: Upgrade to GitHub Pro or make this repository public`). Hay que decidir §9.1: hacerlos públicos y correr `bash /tmp/protect.sh <repo>` (script en §8), o quedarse sin protección |
 | **Decisiones del equipo** (§9) | — | **Visibilidad (bloquea la protección de rama)**, herramienta de historias, Express en promo. Se tomaron por defecto: repos nuevos privados salvo `.github`; 1 aprobación obligatoria |
+
+### Actualización del 29 de septiembre de 2026
+
+Hecho hoy, todo por PR. Ningún PR se fusionó sin revisión: la fusión la hace quien revise.
+
+| Repo | PR | Qué trae | Revisor pedido |
+|---|---|---|---|
+| `planazo-service-template` | #8 | NestJS 10.4 → **11.2.6** (`npm audit --omit=dev` pasa de 7 hallazgos, 2 altos, a 0), `@types/express` 5, Dependabot agrupado y sin saltos mayores, acciones de CI v7, `railway.json` (builder Dockerfile, health check, 1 réplica) | Juan Camilo, Fabián |
+| `planazo-booking` | #10 | Mismo cambio que la plantilla; 17 pruebas en verde | Fabián |
+| `planazo-game` | #11 | Mismo cambio que la plantilla | Juan Camilo (Diego Rozo aún no está en la org) |
+| `planazo-realtime` | #11 | Mismo cambio que la plantilla | Juan Camilo |
+| `planazo-api-gateway` | #11 | NestJS 11, `@nestjs/jwt` 11, helmet 8; comodines del proxy en sintaxis de Express 5 (`['places', 'places/*splat']`). Probado en local: health, login, nueve rutas proxy → `502` controlado, `401` sin token, `404` | Juan Camilo, Fabián |
+| `planazo-infra` | #3 | Dependabot agrupado, acciones v7 | Juan Camilo, Fabián |
+| `planazo-promo` | #11 | Dependabot agrupado y sin mayores (la UI Vite/React sale con el issue #3), acciones v7. No toca código | Fabián |
+| `planazo-frontend` | #7 | La ficha en `live` completa `promos` con `GET /api/promos?zone=` filtrando por `placeId`; Next 15.5 → **16.3.7** (`npm audit` a 0: postcss); Dependabot agrupado; acciones v7; estas notas | Juan Camilo, Fabián |
+
+**Por qué NestJS 11 y no 12.** NestJS 12 se publica solo como ESM y el Jest/ts-jest de la plantilla no lo carga; 11.2.6 sigue en CommonJS y corrige las mismas CVE (multer, platform-express, core, body-parser, qs). Los PRs de seguridad que Dependabot había abierto fallaban porque subían un paquete de `@nestjs/*` a la vez y los peers no cuadraban. Express 5 obliga a nombrar los comodines de ruta, de ahí el cambio en el proxy.
+
+**Etiquetas.** Las 14 comunes ahora también están en `planazo-service-template`, `planazo-infra` y `.github`, que se habían quedado con las de GitHub por defecto.
+
+Sigue pendiente, y quién lo destraba:
+
+| Pendiente | Quién | Cómo |
+|---|---|---|
+| Revisar y fusionar los 8 PRs de arriba | Juan Camilo y Fabián | En los repos privados no hay protección, así que basta con aprobar y fusionar con squash |
+| Cerrar los 63 PRs de Dependabot abiertos el 25 sep | Juan Diego | Todos quedaron sustituidos por los PRs de arriba. Dependabot cierra solo los que se vuelven redundantes al fusionar; los de saltos mayores se cierran a mano: `gh pr close <n> -R planazo-team/<repo>` |
+| Visibilidad de los 7 repos privados (§9.1) | Equipo | Si se hacen públicos: `gh repo edit planazo-team/<repo> --visibility public --accept-visibility-change-consequences` y luego el script de §8 para proteger `main` |
+| 2FA obligatorio; impedir que miembros borren repos o cambien visibilidad | Juan Diego (owner), desde la web | Settings de la org → *Authentication security* y *Member privileges*. El token actual de `gh` no tiene `admin:org`; con `gh auth refresh -s admin:org` también sale por API |
+| Invitación de Diego Rozo (pendiente desde el 22 sep) | Diego Rozo | Aceptarla desde el correo o en github.com/planazo-team. Si venció, reenviarla desde *People → Pending invitations* |
+| Desplegar gateway en Railway y frontend en Vercel | Juan Diego | `railway.json` ya declara builder y health check; variables en §8. En Vercel: importar el repo con Root Directory `frontend` y las cuatro variables de `.env.example` |
 
 ---
 
@@ -185,7 +215,7 @@ Checklist que **todo** repo de servicio (`booking`, `promo`, `game`, `realtime`,
 
 | Pieza | Detalle |
 |---|---|
-| Stack | NestJS 10 + TypeScript, Node 20 (`engines` en `package.json`, `.nvmrc`). `promo` puede quedarse en Express si Fabián lo prefiere, pero con la misma estructura de scripts. |
+| Stack | NestJS 11 (CommonJS; NestJS 12 es solo ESM y no lo soporta la plantilla con Jest) + TypeScript 5, Node 20 (`engines` en `package.json`, `.nvmrc`). `promo` puede quedarse en Express si Fabián lo prefiere, pero con la misma estructura de scripts. |
 | Scripts | `start:dev`, `build`, `start`, `typecheck`, `lint`, `test`. CI corre los cuatro últimos. |
 | `GET /health` | `{ service, status, version }`. Railway lo usa como health check y el compose también. |
 | `Dockerfile` | multi-stage: `npm ci` → `npm run build` → imagen `node:20-alpine` con `dist/`. |

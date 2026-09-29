@@ -1,6 +1,6 @@
 import { config } from '../config';
 import { getSession } from '../session';
-import type { ApiResult, ErrorCode } from '../types';
+import type { ApiResult, ErrorCode, PlaceDetail, Promo } from '../types';
 import type { Api } from './types';
 
 /**
@@ -49,7 +49,14 @@ const qs = (o: Record<string, string | undefined>) => {
 
 export const liveApi: Api = {
   listPlaces: (q = {}) => get(`/api/places${qs({ zone: q.zone, category: q.category })}`, []),
-  getPlace: (id) => get(`/api/places/${encodeURIComponent(id)}`, null),
+  getPlace: async (id) => {
+    const place = await get<PlaceDetail | null>(`/api/places/${encodeURIComponent(id)}`, null);
+    if (!place) return null;
+    // booking no conoce las promociones (docs/arquitectura.md, nota de GET /places/:id):
+    // la ficha se completa con las activas de promo, filtradas por este lugar.
+    const promos = await get<Promo[]>(`/api/promos${qs({ zone: place.zone })}`, []);
+    return { ...place, promos: promos.filter((p) => p.placeId === place.id) };
+  },
   reserve: (input) => call('POST', '/api/reservations', input),
   myReservations: () => get('/api/reservations/mine', []),
 

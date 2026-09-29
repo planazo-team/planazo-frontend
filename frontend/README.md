@@ -102,7 +102,7 @@ Sigue [`docs/arquitectura.md`](../docs/arquitectura.md). Todo pasa por el API Ga
 |---|---|---|
 | `POST` | `/api/auth/demo` `{userId}` → `{token}` | gateway |
 | `GET` | `/api/places?zone=&category=` | booking |
-| `GET` | `/api/places/:id` | booking |
+| `GET` | `/api/places/:id` | booking · `promos` se completa con `GET /api/promos?zone=` (promo) filtrando por `placeId` |
 | `GET` | `/api/places/:id/reservations` | booking |
 | `PATCH` | `/api/places/:id/slots/:sid` `{capacity, version}` | booking |
 | `POST` | `/api/reservations` `{slotId, people, version}` | booking |
