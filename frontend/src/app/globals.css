@@ -599,6 +599,10 @@ h3 {
   border: 1px solid var(--line);
   background: var(--surface-2);
 }
+/* Oscurece las teselas de OpenStreetMap para el tema oscuro. */
+.tiles-dark {
+  filter: invert(1) hue-rotate(180deg) brightness(0.9) contrast(0.9) saturate(0.5);
+}
 .pin {
   display: flex;
   align-items: center;
