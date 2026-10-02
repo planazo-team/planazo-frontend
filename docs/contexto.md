@@ -286,10 +286,34 @@ Zonas: `zona-g` (centro `4.6553, -74.0566`), `zona-t` (centro `4.6672, -74.0536`
 |---|---|
 | `frontend` | **Existe y funciona.** Modo `mock` completo: simula los 5 servicios en el navegador, con concurrencia y reconexión simuladas. CI y Dockerfile listos. Falta desplegar en Vercel. |
 | `api-gateway` | **Existe y está probado en local y en Docker.** Auth demo, proxy con `x-gateway-key` y `x-user-name`, CORS con lista blanca, rate limit, `/api/health`, módulo `agent` con el contrato `PlanResult` y fallback a plantilla. CI y Dockerfile listos. Falta desplegar en Railway. |
-| `promo` | **Tiene código de Fabián** (Express) que hay que alinear al contrato: sacar la UI, stock en Redis, publicar al bus, nombres en camelCase. La lista está en el issue del repo. CI agregado. |
-| `booking`, `game`, `realtime` | **Esqueleto desde la plantilla:** `/health`, guard de la llave, identidad, bus, Dockerfile y CI. Sin lógica de dominio todavía. |
+| `promo` | **Tiene código de Fabián** (React + Vite + Express) que hay que alinear al contrato: sacar la UI, stock en Redis, publicar al bus, nombres en camelCase. La lista está en el issue del repo. CI agregado. |
+| `game` | **Implementado por Diego, en `main` desde el 2 de octubre.** Java + Spring Boot con arquitectura hexagonal: dominio `Sala`/`Serpiente`, runtime de partida, leaderboard en Redis, eventos por RabbitMQ, WebSocket STOMP, migración Flyway, Swagger y tests de ArchUnit. |
+| `booking`, `realtime` | **Esqueleto desde la plantilla:** `/health`, guard de la llave, identidad, bus, Dockerfile y CI. Sin lógica de dominio todavía. |
 | `planazo-infra` | **Existe.** Compose con Redis y tres Postgres, k6 de los cuatro retos de concurrencia/reconexión, contratos, colección Bruno. |
 | Conexión frontend ↔ gateway | **Probada de punta a punta** en local: login real, token emitido, rutas protegidas respondiendo, CORS bloqueando orígenes ajenos. |
+
+### Divergencias de stack (reales, hay que decidirlas)
+
+El stack documentado dice NestJS para todos los servicios. Dos repos ya no lo cumplen, y en ambos casos **el código existe y funciona**, así que la decisión no es "quién tenía razón" sino qué se normaliza:
+
+| Repo | Lo documentado | Lo que hay | Qué implica |
+|---|---|---|---|
+| `game` | NestJS + Redis pub/sub | **Java 21 + Spring Boot + RabbitMQ** | El despliegue en Railway necesita build de Maven con JDK, no Node. Sus 11 PRs de Dependabot y el de NestJS 11 quedaron obsoletos: hay que cerrarlos. |
+| `promo` | NestJS headless | **React + Vite + Express**, con UI propia | Duplica el trabajo del frontend. Detrás del gateway solo sirve `src/routes/promos.ts`; la UI sobra. |
+
+**El bus es la divergencia que más duele.** El contrato de §6.4 dice canal Redis `planazo.events`; `game` publica por **RabbitMQ**. Mientras no se unifique, `realtime` no va a recibir los eventos del juego. Hay que elegir uno —RabbitMQ da entrega garantizada y es lo que ya está escrito; Redis pub/sub no suma infraestructura porque ya está— y alinear a los demás.
+
+**`game` todavía no encaja detrás del gateway.** Su README documenta un servicio que hoy funciona solo, con su propia puerta de entrada:
+
+| | El contrato (§6.1 y §6.2) | Lo que expone `game` |
+|---|---|---|
+| Rutas | `/rooms*`, sin prefijo | `/api/v1/...` |
+| Identidad | headers `x-user-id` / `x-user-role` del gateway | endpoint propio `POST /api/v1/auth/dev-token` |
+| Usuarios | `u1`…`u6`, `b1`…`b3` | los suyos (`j-ana`, …) |
+
+Ninguna de las tres es difícil de alinear, pero **hasta que se alineen, el frontend no puede llegar al juego a través del gateway.** Es la primera tarea de integración del servicio, no un detalle.
+
+**Swagger:** solo `game` lo expone hoy, en `/swagger-ui.html`. Falta en gateway, booking, promo y realtime.
 
 ### El modo `mock` es el andamio
 
