@@ -4,8 +4,22 @@ updates:
     directory: /frontend
     schedule:
       interval: weekly
+      day: monday
     open-pull-requests-limit: 5
+    # Un solo PR semanal con los parches y menores; menos ruido para revisar.
+    groups:
+      dependencias:
+        update-types: ["minor", "patch"]
+    # Los saltos de versión mayor (Next, React, TypeScript) se hacen a mano y probados.
+    # Las correcciones de seguridad que no exijan un mayor siguen llegando.
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
   - package-ecosystem: github-actions
     directory: /
     schedule:
       interval: weekly
+      day: monday
+    groups:
+      actions:
+        patterns: ["*"]

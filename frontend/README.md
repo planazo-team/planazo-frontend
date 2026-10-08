@@ -16,15 +16,16 @@ Sin configurar nada arranca en **modo mock**: los servicios corren simulados en 
 | Modo | Qué hace | Cuándo |
 |---|---|---|
 | `mock` | booking, promo, game, agent y el Realtime Gateway corren simulados en el navegador | Hoy, mientras no existe el backend. Es el valor por defecto |
-| `live` | HTTP contra el API Gateway y WebSocket contra el Realtime Gateway y game | Cuando los servicios estén arriba |
+| `live` | HTTP contra el API Gateway y WebSocket contra el Realtime Gateway y game | Hoy, contra gateway, booking y promo. Realtime y game se conectan cuando estén desplegados |
 
 Se cambia con una sola variable. Copia `.env.example` a `.env.local`:
 
 ```bash
 NEXT_PUBLIC_API_MODE=live
-NEXT_PUBLIC_API_URL=https://api.planazo.app
-NEXT_PUBLIC_REALTIME_URL=wss://rt.planazo.app/ws
-NEXT_PUBLIC_GAME_URL=wss://game.planazo.app
+NEXT_PUBLIC_API_URL=https://<gateway>.up.railway.app
+# opcionales: sin ellas la app funciona solo por HTTP (sin eventos en vivo ni partida)
+NEXT_PUBLIC_REALTIME_URL=wss://<realtime>.up.railway.app/ws
+NEXT_PUBLIC_GAME_URL=wss://<game>.up.railway.app
 ```
 
 Las pantallas no saben en qué modo están: todas hablan con la misma interfaz, [`src/lib/api/types.ts`](src/lib/api/types.ts).
@@ -102,7 +103,7 @@ Sigue [`docs/arquitectura.md`](../docs/arquitectura.md). Todo pasa por el API Ga
 |---|---|---|
 | `POST` | `/api/auth/demo` `{userId}` → `{token}` | gateway |
 | `GET` | `/api/places?zone=&category=` | booking |
-| `GET` | `/api/places/:id` | booking |
+| `GET` | `/api/places/:id` | booking · `promos` se completa con `GET /api/promos?zone=` (promo) filtrando por `placeId` |
 | `GET` | `/api/places/:id/reservations` | booking |
 | `PATCH` | `/api/places/:id/slots/:sid` `{capacity, version}` | booking |
 | `POST` | `/api/reservations` `{slotId, people, version}` | booking |
@@ -145,7 +146,7 @@ Tópicos: `zone:<zona>`, `place:<id>`, `user:<id>`, `room:<código>`.
 
 1. En Vercel: **Add New → Project** e importa el repositorio.
 2. **Root Directory:** `frontend`. Vercel detecta Next.js solo; no hay que tocar el build.
-3. Variables de entorno: ninguna para el modo mock. Para live, las cuatro de `.env.example`.
+3. Variables de entorno: ninguna para el modo mock. Para live, `NEXT_PUBLIC_API_MODE=live` y `NEXT_PUBLIC_API_URL`; las de realtime y game cuando existan.
 4. **Deploy.**
 
 Cada push a `main` despliega a producción, y cada pull request obtiene su propia URL de vista previa.

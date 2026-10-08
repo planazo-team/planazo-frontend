@@ -12,12 +12,12 @@ Este repo (`planazo-frontend`) contiene el cliente y el panel del negocio. Cada 
 
 | Repo | Servicio | Dueño | Estado |
 |---|---|---|---|
-| `planazo-frontend` *(este)* | Next.js — cliente y panel · **docs del proyecto** | Juan Diego | ✅ Funciona en `mock`; CI y Dockerfile |
-| [`planazo-api-gateway`](https://github.com/planazo-team/planazo-api-gateway) | Entrada HTTP + `agent` como módulo interno | Juan Diego | ✅ Probado en local y Docker; falta Railway |
-| [`planazo-booking`](https://github.com/planazo-team/planazo-booking) | Cupos, reservas, eventos | Fabián | 🟡 Esqueleto desde la plantilla |
-| [`planazo-promo`](https://github.com/planazo-team/planazo-promo) | Promociones y cupones | Fabián | 🟡 Con código; alinear al contrato |
-| [`planazo-game`](https://github.com/planazo-team/planazo-game) | Minijuego Snake | Diego Rozo | 🟡 Esqueleto desde la plantilla |
-| [`planazo-realtime`](https://github.com/planazo-team/planazo-realtime) | WebSocket, event log | Juan Camilo | 🟡 Esqueleto desde la plantilla |
+| `planazo-frontend` *(este)* | Next.js — cliente y panel · **docs del proyecto** | Juan Diego | ✅ `mock` y `live` probados; Vercel |
+| [`planazo-api-gateway`](https://github.com/planazo-team/planazo-api-gateway) | Entrada HTTP + `agent` como módulo interno | Juan Diego | ✅ Listo; se despliega con `planazo-infra/scripts/railway-deploy-core.sh` |
+| [`planazo-booking`](https://github.com/planazo-team/planazo-booking) | Cupos, reservas, eventos | Fabián | ✅ Implementado (CC-3); estado en memoria |
+| [`planazo-promo`](https://github.com/planazo-team/planazo-promo) | Promociones y cupones | Fabián | 🟡 Reescrito al contrato (CC-1 en Redis), PR en revisión |
+| [`planazo-game`](https://github.com/planazo-team/planazo-game) | Minijuego Snake | Diego Rozo | 🟡 Implementado en Java + Spring Boot; integración pendiente |
+| [`planazo-realtime`](https://github.com/planazo-team/planazo-realtime) | WebSocket, event log | Juan Camilo | 🟡 Implementado; redespliegue en Railway pendiente |
 | [`planazo-infra`](https://github.com/planazo-team/planazo-infra) | Compose local, k6, contratos, Bruno | Juan Diego | ✅ |
 | [`planazo-service-template`](https://github.com/planazo-team/planazo-service-template) | Plantilla NestJS de los servicios | Juan Diego | ✅ |
 | [`.github`](https://github.com/planazo-team/.github) | Plantillas de PR e issues de la org | Juan Diego | ✅ |
@@ -172,7 +172,7 @@ planazo-team/                      (organización de GitHub)
 
 Un repo por servicio: cada quien despliega el suyo en Railway sin bloquear a los demás, y el CI/CD de uno no tumba el de otro. `agent` no tiene repo propio — arranca como módulo dentro de `planazo-api-gateway`, tal como describe la sección de arquitectura, y se puede extraer después si sobra tiempo.
 
-En todos los repos `main` está protegida: se entra por PR con una aprobación y el check `ci` verde, con squash merge. Cada repo tiene `CODEOWNERS` con su dueño y Dependabot semanal. Detalle en [`docs/plan-organizacion.md`](docs/plan-organizacion.md).
+La regla es entrar a `main` por PR con una aprobación y el check `ci` verde, con squash merge. Hoy GitHub la hace cumplir en los repos públicos (`planazo-frontend`, `.github`); en los privados el plan gratuito no permite protección de rama, así que ahí es convención hasta que el equipo decida la visibilidad. Cada repo tiene `CODEOWNERS` con su dueño y Dependabot semanal. Detalle en [`docs/plan-organizacion.md`](docs/plan-organizacion.md).
 
 ---
 

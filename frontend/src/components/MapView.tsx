@@ -2,7 +2,6 @@
 
 import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
-import { useEffect, useState } from 'react';
 import { MapContainer, Marker, TileLayer, Tooltip } from 'react-leaflet';
 import { CATEGORY_COLOR, MAP_CENTER } from '@/lib/seed';
 import type { Place } from '@/lib/types';
@@ -22,18 +21,6 @@ function pinIcon(p: Place, selected: boolean) {
   });
 }
 
-function useDarkTiles() {
-  const [dark, setDark] = useState(false);
-  useEffect(() => {
-    const m = window.matchMedia('(prefers-color-scheme: dark)');
-    setDark(m.matches);
-    const on = (e: MediaQueryListEvent) => setDark(e.matches);
-    m.addEventListener('change', on);
-    return () => m.removeEventListener('change', on);
-  }, []);
-  return dark;
-}
-
 export default function MapView({
   places,
   selectedId,
@@ -43,15 +30,18 @@ export default function MapView({
   selectedId?: string | null;
   onSelect: (id: string) => void;
 }) {
-  const dark = useDarkTiles();
+  // El tema es siempre oscuro: las teselas se oscurecen con el filtro .tiles-dark.
+  const dark = true;
   return (
     <div className="map">
       <MapContainer center={MAP_CENTER} zoom={15} scrollWheelZoom style={{ height: '100%', width: '100%' }}>
+        {/* Teselas de OpenStreetMap: no piden API key (CARTO empezó a exigirla). */}
         <TileLayer
           key={dark ? 'dark' : 'light'}
-          url={`https://{s}.basemaps.cartocdn.com/${dark ? 'dark_all' : 'light_all'}/{z}/{x}/{y}{r}.png`}
-          subdomains="abcd"
-          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>'
+          url="https://tile.openstreetmap.org/{z}/{x}/{y}.png"
+          maxZoom={19}
+          className={dark ? 'tiles-dark' : undefined}
+          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
         />
         {places.map((p) => (
           <Marker
