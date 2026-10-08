@@ -1097,3 +1097,185 @@ em.serif {
   border-radius: 10px;
   padding: 8px 10px;
 }
+
+/* ------------------------------------------------------------------ */
+/* minijuego: el cliente de planazo-game (test-client.html) tal cual    */
+/* ------------------------------------------------------------------ */
+
+.mj {
+  font-family: system-ui, sans-serif;
+  background: #111827;
+  color: #e5e7eb;
+  border-radius: 12px;
+  padding: 16px;
+  margin-top: 16px;
+  margin-bottom: 16px;
+}
+.mj h1 {
+  font-size: 18px;
+  font-weight: 700;
+  color: #93c5fd;
+  margin: 0 0 12px;
+  letter-spacing: 0;
+}
+.mj h2 {
+  font-size: 14px;
+  font-weight: 700;
+  color: #9ca3af;
+  margin: 0 0 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+.mj-layout {
+  display: grid;
+  grid-template-columns: 320px 1fr;
+  gap: 14px;
+  align-items: start;
+}
+@media (max-width: 860px) {
+  .mj-layout {
+    grid-template-columns: 1fr;
+  }
+}
+.mj-panel {
+  background: #1f2937;
+  border-radius: 8px;
+  padding: 14px;
+  margin-bottom: 14px;
+}
+.mj-fila {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+  margin-bottom: 8px;
+}
+.mj select,
+.mj button {
+  padding: 7px 12px;
+  border-radius: 6px;
+  border: 1px solid #374151;
+  background: #111827;
+  color: #e5e7eb;
+  font: inherit;
+}
+.mj button {
+  cursor: pointer;
+  background: #2563eb;
+  border: none;
+}
+.mj button.secundario {
+  background: #374151;
+}
+.mj button:disabled {
+  background: #374151;
+  color: #6b7280;
+  cursor: not-allowed;
+}
+.mj-sala {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border-radius: 6px;
+  background: #111827;
+  margin-bottom: 6px;
+  border: 1px solid transparent;
+}
+.mj-sala.actual {
+  border-color: #2563eb;
+}
+.mj-sala small {
+  color: #9ca3af;
+  display: block;
+}
+.mj-chip {
+  font-size: 11px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: #374151;
+}
+.mj-chip.EN_CURSO {
+  background: #b45309;
+}
+.mj-chip.CUENTA_REGRESIVA {
+  background: #7c3aed;
+}
+.mj-chip.ESPERANDO_JUGADORES {
+  background: #065f46;
+}
+.mj-jugador {
+  display: flex;
+  justify-content: space-between;
+  padding: 5px 8px;
+  border-left: 4px solid;
+  background: #111827;
+  border-radius: 4px;
+  margin-bottom: 4px;
+  font-size: 14px;
+}
+.mj-jugador.yo {
+  font-weight: 600;
+}
+.mj-tablero {
+  background: #0b0f17;
+  border: 2px solid #374151;
+  display: block;
+  max-width: 100%;
+  height: auto;
+}
+.mj-log {
+  font-size: 12px;
+  color: #9ca3af;
+  white-space: pre-wrap;
+  max-height: 120px;
+  overflow: auto;
+}
+.mj-ayuda {
+  font-size: 13px;
+  color: #9ca3af;
+  line-height: 1.5;
+}
+.mj kbd {
+  background: #374151;
+  border-radius: 3px;
+  padding: 1px 5px;
+  font-size: 12px;
+}
+.mj-conexion {
+  font-size: 12px;
+}
+/* Controles táctiles: solo en pantallas sin teclado, con los mismos botones del cliente. */
+.mj-dpad {
+  display: none;
+  grid-template-columns: repeat(3, 52px);
+  grid-template-rows: repeat(2, 46px);
+  gap: 6px;
+  justify-content: center;
+  margin-top: 10px;
+}
+.mj-dpad button {
+  font-size: 18px;
+  background: #374151;
+}
+.mj-dpad .up {
+  grid-column: 2;
+}
+.mj-dpad .left {
+  grid-column: 1;
+  grid-row: 2;
+}
+.mj-dpad .down {
+  grid-column: 2;
+  grid-row: 2;
+}
+.mj-dpad .right {
+  grid-column: 3;
+  grid-row: 2;
+}
+@media (hover: none) and (pointer: coarse) {
+  .mj-dpad {
+    display: grid;
+  }
+}

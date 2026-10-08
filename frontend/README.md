@@ -114,10 +114,10 @@ Sigue [`docs/arquitectura.md`](../docs/arquitectura.md). Todo pasa por el API Ga
 | `POST` | `/api/promos/:id/claim` | promo |
 | `GET` | `/api/promos/mine` | promo |
 | `POST` | `/api/plan` `{text}` | agent |
-| `POST` | `/api/rooms` · `/api/rooms/:code/join` · `/api/rooms/:code/start` | game |
-| `GET` | `/api/rooms/hall-of-fame` | game |
+| `GET` | `/api/salas` · `POST /api/salas/:id/jugadores` · `DELETE /api/salas/:id/jugadores/:jugadorId` | game (Java) · responde `{ data }` |
+| `GET` | `/api/leaderboard?limite=10` · `/api/historico/mio` | game (Java) |
 
-Los errores esperados responden con `{ code, message }`: `VERSION_CONFLICT`, `SIN_CUPO`, `PROMO_AGOTADA`, `PROMO_VENCIDA`, `CAPACIDAD_MENOR`, `SALA_NO_EXISTE`, `SALA_EN_JUEGO`, `JUGADORES_INSUFICIENTES`.
+Los errores esperados responden con `{ code, message }`: `VERSION_CONFLICT`, `SIN_CUPO`, `PROMO_AGOTADA`, `PROMO_VENCIDA`, `CAPACIDAD_MENOR`, `SALA_NO_EXISTE`, `SALA_EN_JUEGO`, `JUGADORES_INSUFICIENTES`. Game responde sus errores como `{ codigo, mensaje }` (p. ej. `SALA_LLENA`).
 
 **Realtime Gateway** — `NEXT_PUBLIC_REALTIME_URL`
 
@@ -132,13 +132,17 @@ Los errores esperados responden con `{ code, message }`: `VERSION_CONFLICT`, `SI
 
 Tópicos: `zone:<zona>`, `place:<id>`, `user:<id>`, `room:<código>`.
 
-**Partida** — `NEXT_PUBLIC_GAME_URL/rooms/:code/play`
+**Partida** — STOMP sobre `NEXT_PUBLIC_GAME_URL/ws/websocket` (planazo-game, Java). El JWT va en el header `Authorization` del frame CONNECT.
 
 ```
-→ { type: "AUTH", token }
-→ { type: "INTENT", dir: "up" | "down" | "left" | "right" }
-← { type: "STATE", state }        ~20 veces por segundo
+SUBSCRIBE /topic/salas                      lista de salas en vivo (ResumenSala[])
+SUBSCRIBE /topic/salas/{id}                 snapshot de la sala en cada tick (EstadoJuegoDTO)
+SUBSCRIBE /user/queue/errores               errores propios { codigo, mensaje }
+SEND      /app/salas/{id}/registrar-sesion  tras suscribirse: el servidor responde con el estado actual (y reconecta, SNK-07)
+SEND      /app/salas/{id}/mover             { direccion: "ARRIBA" | "ABAJO" | "IZQUIERDA" | "DERECHA" }
 ```
+
+La pantalla del juego (`src/app/cliente/juego`) es el cliente de prueba de planazo-game (`test-client.html`) llevado a la app con su mismo diseño; el tablero se dibuja en `src/components/TableroSnake.tsx`. En modo `mock` el simulador del navegador habla este mismo protocolo (`src/lib/mock/game.ts`).
 
 ---
 

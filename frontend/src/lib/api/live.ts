@@ -71,11 +71,6 @@ export const liveApi: Api = {
     call('PATCH', `/api/places/${encodeURIComponent(placeId)}/slots/${encodeURIComponent(slotId)}`, { capacity, version }),
   createEvent: (input) => call('POST', '/api/events', input),
   launchPromo: (input) => call('POST', '/api/promos', input),
-
-  createRoom: () => call('POST', '/api/rooms'),
-  joinRoom: (code) => call('POST', `/api/rooms/${encodeURIComponent(code)}/join`),
-  startRoom: (code) => call('POST', `/api/rooms/${encodeURIComponent(code)}/start`),
-  hallOfFame: () => get('/api/rooms/hall-of-fame', []),
 };
 
 /** Login de demo: el gateway firma un JWT fijo para el usuario semilla. */

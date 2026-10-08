@@ -1,4 +1,3 @@
-import { mockGame } from '../mock/game';
 import { backend } from '../mock/services';
 import { getSession } from '../session';
 import type { ApiResult } from '../types';
@@ -9,7 +8,6 @@ function me() {
   return s ? { id: s.id, name: s.name } : { id: 'anon', name: 'Invitado' };
 }
 
-const noSession = { ok: false, status: 401, error: 'Inicia sesión para continuar.' } as const;
 
 /** Implementación simulada: mismos mecanismos que los servicios, corriendo en el navegador. */
 export const mockApi: Api = {
@@ -29,10 +27,6 @@ export const mockApi: Api = {
   createEvent: ({ placeId, ...rest }) => backend().createEvent(placeId, rest),
   launchPromo: ({ placeId, ...rest }) => backend().launchPromo(placeId, rest),
 
-  createRoom: async () => (getSession() ? mockGame().create(me()) : (noSession as ApiResult<never>)),
-  joinRoom: async (code) => (getSession() ? mockGame().join(code, me()) : (noSession as ApiResult<never>)),
-  startRoom: async (code) => mockGame().start(code),
-  hallOfFame: async () => mockGame().hallOfFame(),
 
   demo: {
     bumpFromOtherDevice: (slotId) => backend().bumpFromOtherDevice(slotId),
