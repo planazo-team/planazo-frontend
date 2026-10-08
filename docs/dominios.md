@@ -85,7 +85,7 @@ Cada ficha tiene la misma estructura: lenguaje (los términos que usa el equipo 
 **Lenguaje:** promoción · descuento · stock · stock inicial · reclamar · cupón · código de cupón · vencimiento · agotada.
 
 **Agregados**
-- `Promoción { id, placeId, placeName, zone, title, discount, stock, initialStock, expiresAt }`. El contador `stock` vive en Redis; el resto en PostgreSQL.
+- `Promoción { id, placeId, placeName, zone, title, discount, stock, initialStock, expiresAt }`. El contador `stock` vive en Redis; el resto, por ahora, en memoria del servicio (PostgreSQL pendiente).
 - `Cupón { id, promoId, userId, code, title, discount, placeName, claimedAt }`.
 
 **Invariantes**
@@ -107,30 +107,32 @@ Cada ficha tiene la misma estructura: lenguaje (los términos que usa el equipo 
 
 ### 2.4 · Juego — `game`
 
-**Lenguaje:** sala · código de sala (4 letras) · anfitrión · jugador · intención (`up/down/left/right`) · tick · serpiente · comida · marcador (leaderboard) · ronda · salón de la fama.
+**Lenguaje:** sala (pre-existente, de cupo fijo) · código de sala (`Sala Bogotá`, …) · jugador · dirección (`ARRIBA/ABAJO/IZQUIERDA/DERECHA`) · tick · serpiente · comida · estado de sala (`ESPERANDO_JUGADORES`, `CUENTA_REGRESIVA`, `EN_CURSO`, `FINALIZADA`) · estado de serpiente (`VIVA`, `ELIMINADA`, `DESCONECTADA_CONGELADA`) · resultado de partida · marcador global (leaderboard) · histórico.
 
 **Agregados**
-- `Sala { code, hostId, status: lobby|playing|finished, players[] }` con su estado de partida `{ snakes, food, tick, endsAt }`. Vive en **memoria**: si el proceso muere, la partida muere y no pasa nada.
-- `Marcador` de la sala: sorted set en Redis `leaderboard:{code}`.
-- `SalónDeLaFama`: puntajes finales registrados, sorted set global en Redis.
+- `Sala` (raíz) con sus `Serpiente[]`, la comida y el tick. Vive en **memoria**, en manos de un único `SalaRuntime` por sala. El catálogo de salas (`salas`) está en PostgreSQL, esquema `minijuego`.
+- `ResultadoPartida { salaId, salaCodigo, ganadorJugadorId, ganadorJugadorNombre, motivoVictoria, puntajes[], iniciadaEn, finalizadaEn }`: se persiste en PostgreSQL (`resultados_partida`, `puntajes_jugador`) y alimenta el leaderboard.
+- `Leaderboard` global: sorted set en Redis (db 1).
 
 **Invariantes**
-- Solo el servidor mueve las serpientes. El cliente envía intenciones, nunca posiciones. Es RT-3.
-- Una sala arranca con **≥ 2 jugadores** (`409 JUGADORES_INSUFICIENTES`); una sala `playing` no acepta entradas (`409 SALA_EN_JUEGO`); un código que no existe es `404 SALA_NO_EXISTE`.
-- El marcador solo sube (`ZADD GT`) y todos los clientes ven el **mismo orden**, resuelto por el servidor con desempate determinista. Es CC-2.
-- El token del WebSocket llega en el **primer mensaje**, nunca en la URL. `game` lo verifica con el `JWT_SECRET` compartido.
+- Solo el servidor mueve las serpientes; el cliente envía direcciones, nunca posiciones. Es RT-3.
+- Una sala arranca sola cuando está **llena** (cuenta regresiva de 3 s); una sala llena rechaza con `409 SALA_LLENA`; en `EN_CURSO` no se entra.
+- Una serpiente no invierte su dirección en un solo tick; si su cabeza toca un borde o un cuerpo, queda `ELIMINADA`; gana la última en pie o, al agotarse el tiempo, la de mayor puntaje.
+- Quien pierde el socket queda `DESCONECTADA_CONGELADA` 15 s y puede volver (SNK-07) con `registrar-sesion`.
+- Cada puntaje final queda registrado y el marcador solo sube (`ZINCRBY`); todos ven el mismo orden. Es CC-2.
+- El JWT se valida en el propio servicio (HS256, `JWT_SECRETO` = `JWT_SECRET` del gateway), tanto en REST (`Bearer` reenviado por el gateway) como en el `CONNECT` de STOMP. Lee `sub` y `nombre`.
 
-**Expone:** HTTP `POST /rooms`, `POST /rooms/:code/join`, `POST /rooms/:code/start`, `GET /rooms/hall-of-fame` (vía gateway); WebSocket `/rooms/:code/play` (directo).
-**Publica:** `ROOM.JOIN`, `SNAKE.SCORE`, `ROUND.END` (tópico `room:`), para que quien mira el lobby desde la app se entere sin estar en el canal del juego.
+**Expone:** REST `/api/v1/salas`, `/api/v1/salas/{id}/jugadores`, `/api/v1/leaderboard`, `/api/v1/historico/mio` (vía gateway como `/api/salas`, `/api/leaderboard`, `/api/historico`); STOMP `/ws` con `/app/salas/{id}/registrar-sesion`, `/app/salas/{id}/mover` y `/user/queue/errores`; Swagger en `/swagger-ui.html`.
+**Publica:** `LOBBY.ROOMS_UPDATE` (tópico `salas`), `GAME.STATE_UPDATE` (tópico `salas:<id>`, cada tick) y `GAME.PARTIDA_FINALIZADA` (tópico `global`). `realtime` los reparte al frontend.
 **Consume:** nada del bus.
 
-**No hace:** persistir partidas, conocer lugares ni promociones. Su relación con el resto del producto es solo el usuario que juega.
+**No hace:** conocer lugares ni promociones, crear salas dinámicas, usar `x-gateway-key`. Su relación con el resto del producto es solo el usuario que juega.
 
 ---
 
 ### 2.5 · Difusión y memoria de eventos — `realtime`
 
-**Lenguaje:** evento · sobre · `seq` (orden global) · `id` (deduplicación) · tópico (`zone:`, `place:`, `user:`, `room:`) · suscripción · reanudación (`RESUME`) · reenvío (`REPLAY`).
+**Lenguaje:** evento · sobre · `seq` (orden global) · `id` (deduplicación) · tópico (`zone:`, `place:`, `user:`, `salas`, `salas:`, `global`) · suscripción · reanudación (`RESUME`) · reenvío (`REPLAY`).
 
 **Agregado:** `RegistroDeEventos` (event log): tabla `events (seq, id, type, payload, topics[], created_at)`. Más, en memoria, `Conexión { userId, topics[], lastSeq }`.
 
@@ -168,7 +170,7 @@ Cada ficha tiene la misma estructura: lenguaje (los términos que usa el equipo 
 
 ### 2.7 · Experiencia — `frontend`
 
-**Lenguaje:** vista cliente (mapa, lugar, agente, juego, mis planes) · vista negocio (panel) · modo `mock` · modo `live` · sesión.
+**Lenguaje:** vista cliente (mapa, lugar, agente, juego, mis planes) · vista negocio (panel) · modo `mock` · modo `live` · sesión. La pantalla del juego reproduce el cliente de `planazo-game` (`test-client.html`) con su mismo diseño.
 
 **Responsabilidad:** es el **consumidor** de todos los dominios y, por tanto, quien define el contrato ejecutable (`frontend/src/lib/types.ts` y `api/types.ts`). El modo `mock` es la referencia de comportamiento: lo que hace el mock es lo que debe hacer el servicio real.
 
@@ -186,7 +188,7 @@ Hay datos que varios dominios necesitan **leer** pero que solo uno **escribe**. 
 | Dato | Maestro (escribe) | Copias de lectura | Cómo se mantiene igual |
 |---|---|---|---|
 | Establecimientos `p1`…`p12`: id, nombre, zona, categoría | `booking` | `promo` (nombre y zona) · `frontend` (modo mock) · `agent` (lee por HTTP) | Un solo archivo fuente: `frontend/src/lib/seed.ts`. Cada servicio lo copia en su `npm run seed`. Si cambia, cambia en todos en el mismo PR. |
-| Usuarios semilla `u1`…`b3` | `api-gateway` | `frontend` (`session.ts`) · `booking` y `game` reciben el nombre por `x-user-name` | Dos archivos que deben coincidir: `seed-users.ts` y `session.ts`. |
+| Usuarios semilla `u1`…`b3` | `api-gateway` | `frontend` (`session.ts`) · `booking` recibe el nombre por `x-user-name` · `game` lo lee del claim `nombre` del JWT | Dos archivos que deben coincidir: `seed-users.ts` y `session.ts`. |
 | Zonas y categorías (enumeraciones) | `frontend/src/lib/types.ts` | todos | Son literales: `zona-g`, `zona-t`; `restaurante`, `bar`, `discoteca`, `hotel`, `evento`, `aire-libre`. |
 
 Regla: **ningún servicio llama a otro para completar un nombre.** Si necesita un dato de referencia, lo tiene en su copia. La única lectura entre servicios permitida es `agent → booking`, porque el agente necesita disponibilidad en vivo y no tiene estado propio.
@@ -214,7 +216,7 @@ flowchart LR
   FE -. "WebSocket directo" .-> GM
   ID -- "identidad en headers<br/>+ x-gateway-key" --> BK
   ID -- "identidad en headers<br/>+ x-gateway-key" --> PR
-  ID -- "identidad en headers<br/>+ x-gateway-key" --> GM
+  ID -- "Authorization: Bearer<br/>(game valida el JWT)" --> GM
   ID --- AG
   AG -- "lectura del catálogo" --> BK
   BK -- "eventos (lenguaje publicado)" --> RT

@@ -22,7 +22,7 @@ Este repo (`planazo-frontend`) contiene el cliente y el panel del negocio. Cada 
 | [`planazo-service-template`](https://github.com/planazo-team/planazo-service-template) | Plantilla NestJS de los servicios | Juan Diego | ✅ |
 | [`.github`](https://github.com/planazo-team/.github) | Plantillas de PR e issues de la org | Juan Diego | ✅ |
 
-El frontend corre hoy **sin backend**: en modo `mock` simula los servicios en el navegador con los mismos mecanismos de concurrencia y reconexión. Cuando cada servicio esté desplegado, se cambia a modo `live` apuntando a su URL real — ver [`frontend/README.md`](frontend/README.md).
+**Producción:** https://planazo-frontend.vercel.app, en modo `live` contra los cinco servicios en Railway (gateway en `https://planazo-api-gateway-production.up.railway.app`). El modo `mock` sigue existiendo para desarrollar sin backend: simula los servicios en el navegador con los mismos mecanismos de concurrencia y reconexión — ver [`frontend/README.md`](frontend/README.md).
 
 ### Documentación del proyecto
 
@@ -67,9 +67,9 @@ No se divide por entidad ("servicio de usuarios", "servicio de eventos"). Se div
 
 | # | Servicio | Responsabilidad | Datos | Retos | ¿Recortable? |
 |---|---|---|---|---|---|
-| 1 | **`booking`** | Franjas, cupos, reservas, eventos del negocio | PostgreSQL | CC‑3 · RT‑1 | ❌ |
-| 2 | **`promo`** | Promociones de stock finito y cupones | Redis + PostgreSQL | CC‑1 | ❌ |
-| 3 | **`game`** | Salas, partida de Snake, marcador | Memoria + Redis | RT‑3 · CC‑2 | ❌ |
+| 1 | **`booking`** | Franjas, cupos, reservas, eventos del negocio | Memoria (PostgreSQL pendiente) | CC‑3 · RT‑1 | ❌ |
+| 2 | **`promo`** | Promociones de stock finito y cupones | Redis (stock) + memoria | CC‑1 | ❌ |
+| 3 | **`game`** | Salas, partida de Snake, marcador · Java + Spring Boot | Memoria + PostgreSQL + Redis | RT‑3 · CC‑2 | ❌ |
 | 4 | **`realtime`** | WebSocket, suscripciones y event log | PostgreSQL | RT‑2 · RT‑1 | ❌ |
 | 5 | **`agent`** | Convierte una frase en una ruta de lugares | Sin estado | — | ✅ |
 | — | *`api-gateway`* | Entrada HTTP, validación del token, enrutamiento | Sin estado | — | infraestructura |
@@ -143,14 +143,14 @@ Pauta, métricas del negocio, notificaciones push fuera de la app, reseñas, bil
 |---|---|
 | Frontend | Next.js — web *mobile-first*, cliente y panel en una sola app, desplegada en Vercel |
 | Mapa | Leaflet con teselas de OpenStreetMap / CARTO — sin llave de API |
-| Servicios | NestJS (Node + TypeScript) |
-| Tiempo real | Socket.IO |
-| Base de datos | PostgreSQL |
+| Servicios | NestJS (Node + TypeScript) en gateway, booking, promo y realtime; `game` en Java 21 + Spring Boot 3 |
+| Tiempo real | WebSocket nativo (`ws`) en `realtime`; STOMP sobre WebSocket en `game` |
+| Base de datos | PostgreSQL (realtime con Prisma, game con Flyway); booking y promo en memoria por ahora |
 | Concurrencia y bus | Redis — stock atómico, sorted set y pub/sub |
 | Agente | Claude API con salida estructurada |
 | Pruebas de carga | k6 |
 | Gestión | Azure DevOps |
-| Despliegue de servicios | Railway — un proyecto con 5 servicios (gateway, booking, promo, game, realtime), cada uno con su Postgres/Redis |
+| Despliegue de servicios | Railway — un proyecto con los 5 servicios, un Postgres y un Redis; `planazo-infra/scripts/railway-deploy-core.sh` crea gateway, booking y promo |
 | Despliegue del frontend | Vercel — importa `planazo-frontend`, Root Directory = `frontend` |
 
 ---
@@ -172,7 +172,7 @@ planazo-team/                      (organización de GitHub)
 
 Un repo por servicio: cada quien despliega el suyo en Railway sin bloquear a los demás, y el CI/CD de uno no tumba el de otro. `agent` no tiene repo propio — arranca como módulo dentro de `planazo-api-gateway`, tal como describe la sección de arquitectura, y se puede extraer después si sobra tiempo.
 
-La regla es entrar a `main` por PR con una aprobación y el check `ci` verde, con squash merge. Hoy GitHub la hace cumplir en los repos públicos (`planazo-frontend`, `.github`); en los privados el plan gratuito no permite protección de rama, así que ahí es convención hasta que el equipo decida la visibilidad. Cada repo tiene `CODEOWNERS` con su dueño y Dependabot semanal. Detalle en [`docs/plan-organizacion.md`](docs/plan-organizacion.md).
+La regla es entrar a `main` por PR con el check `ci` verde, con squash merge. GitHub la hace cumplir en `planazo-frontend` (sin aprobación obligatoria desde el 8 de octubre) y en `.github`; en los privados el plan gratuito no permite protección de rama, así que ahí es convención. Cada repo tiene `CODEOWNERS` con su dueño y Dependabot semanal. Detalle en [`docs/plan-organizacion.md`](docs/plan-organizacion.md).
 
 ---
 
@@ -180,7 +180,7 @@ La regla es entrar a `main` por PR con una aprobación y el check `ci` verde, co
 
 | Persona | Frente | Nota |
 |---|---|---|
-| 1 | `game` | 9 de las 25 historias del MVP están aquí |
+| 1 | `game` | 10 de las 25 historias del MVP están aquí (SNK-01 a SNK-10) |
 | 2 | `realtime` + event log | **Arranca primero:** los demás dependen de él para difundir |
 | 3 | `booking` + `promo` | El mismo patrón mental con dos mecanismos distintos |
 | 4 | `agent` + seed + integración | El frontend ya existe: conectarlo a modo `live` a medida que cada servicio sale |
@@ -199,13 +199,13 @@ npm run dev
 
 Abre `http://localhost:3000` y entra como cliente o como establecimiento. Por defecto corre en modo `mock`, sin backend ni variables de entorno.
 
-**Modo `live`:** cuando `planazo-api-gateway`, `planazo-game` y `planazo-realtime` estén desplegados en Railway, apunta el frontend a sus URLs reales:
+**Modo `live`:** apunta el frontend a los servicios de Railway (las URLs de producción, o las de tu máquina si corres los servicios en local):
 
 ```bash
 NEXT_PUBLIC_API_MODE=live
-NEXT_PUBLIC_API_URL=https://<tu-api-gateway>.up.railway.app
-NEXT_PUBLIC_REALTIME_URL=wss://<tu-realtime>.up.railway.app/ws
-NEXT_PUBLIC_GAME_URL=wss://<tu-game>.up.railway.app
+NEXT_PUBLIC_API_URL=https://planazo-api-gateway-production.up.railway.app
+NEXT_PUBLIC_REALTIME_URL=wss://planazo-realtime-production.up.railway.app/ws
+NEXT_PUBLIC_GAME_URL=wss://planazo-game-production.up.railway.app
 ```
 
 **Desplegar en Vercel:** importa `planazo-frontend` y define **Root Directory = `frontend`**. Vercel detecta Next.js solo; agrega ahí las mismas variables de entorno para modo `live`. Pasos completos y contrato con el backend en [`frontend/README.md`](frontend/README.md).

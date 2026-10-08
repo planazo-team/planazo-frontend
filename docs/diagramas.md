@@ -56,44 +56,44 @@ flowchart TB
 
   subgraph Nucleo["Servicios de dominio (red privada salvo los WebSocket)"]
     BK["booking<br/>NestJS · :3001<br/>CC-3 · RT-1"]:::svc
-    PR["promo<br/>Node · :3002<br/>CC-1"]:::svc
-    GM["game<br/>NestJS · :3003 / ws :8082<br/>RT-3 · CC-2"]:::svc
+    PR["promo<br/>NestJS · :3002<br/>CC-1"]:::svc
+    GM["game<br/>Java · Spring Boot · :8082<br/>REST /api/v1 + STOMP /ws<br/>RT-3 · CC-2"]:::svc
     RT["realtime<br/>NestJS · ws :8081<br/>RT-2 · RT-1"]:::svc
   end
 
   subgraph Datos
-    PG1[(PostgreSQL<br/>booking)]:::db
-    PG2[(PostgreSQL<br/>promo)]:::db
-    PG3[(PostgreSQL<br/>realtime<br/>event log)]:::db
-    RD[(Redis<br/>stock · leaderboard · bus)]:::db
+    PG[(PostgreSQL<br/>realtime: event log · game: esquema minijuego)]:::db
+    RD[(Redis<br/>bus · stock de promo · leaderboard de game)]:::db
+    MEM["memoria<br/>booking: inventario y reservas · promo: promos y cupones"]:::db
   end
 
   BUS{{"bus de eventos<br/>Redis pub/sub · canal planazo.events"}}:::bus
 
   FE -->|"HTTP /api/*"| GW
   FE -.->|ws AUTH · SUBSCRIBE · RESUME| RT
-  FE -.->|ws AUTH · INTENT → STATE| GM
+  FE -.->|STOMP CONNECT con JWT · registrar-sesion · mover| GM
 
   GW -->|"/places /reservations /events<br/>x-user-* + x-gateway-key"| BK
   GW -->|"/promos"| PR
-  GW -->|"/rooms"| GM
+  GW -->|"/api/v1/salas /leaderboard /historico<br/>Authorization: Bearer"| GM
   AG -->|GET /places lectura| BK
 
-  BK --- PG1
-  PR --- PG2
+  BK --- MEM
+  PR --- MEM
   PR --- RD
   GM --- RD
-  RT --- PG3
+  GM --- PG
+  RT --- PG
 
-  BK ==>|PLACE.UPDATE INV.UPDATE RESERVE.*| BUS
-  PR ==>|PROMO.*| BUS
-  GM ==>|ROOM.JOIN SNAKE.SCORE ROUND.END| BUS
+  BK ==>|PLACE.UPDATE INV.UPDATE RESERVE.OK| BUS
+  PR ==>|PROMO.PUSH PROMO.WON PROMO.EXPIRED| BUS
+  GM ==>|LOBBY.ROOMS_UPDATE GAME.STATE_UPDATE GAME.PARTIDA_FINALIZADA| BUS
   BUS ==>|consume todo y asigna seq| RT
 ```
 
 Lectura rápida:
 
-- **Dos puertas de entrada**, no una: HTTP por el gateway; WebSocket directo a `realtime` y `game`. Un proxy HTTP en medio de un canal de 20 Hz solo suma latencia.
+- **Dos puertas de entrada**, no una: HTTP por el gateway; WebSocket directo a `realtime` y `game`. Hacia `game` el socket solo lleva comandos; el estado de cada tick vuelve por el bus y `realtime`, que es quien lo reparte a los jugadores.
 - **Ningún servicio le habla a otro** salvo `agent → booking` (lectura). Todo lo demás son eventos.
 - **Un Redis** hace tres papeles en el MVP (contador de `promo`, sorted set de `game`, bus). Si el pico de `promo` lo estorba, se separa el bus; hasta entonces es complejidad que no compra nada.
 
@@ -114,35 +114,32 @@ flowchart LR
     FE[frontend<br/>Root Directory = frontend<br/>NEXT_PUBLIC_API_MODE=live]:::ext
   end
 
-  subgraph Railway["Railway · un proyecto · variables compartidas JWT_SECRET · GATEWAY_KEY · BUS_URL"]
+  subgraph Railway["Railway · un proyecto · JWT_SECRET (= JWT_SECRETO en game), GATEWAY_KEY y BUS_URL iguales en cada servicio"]
     direction TB
     subgraph Publico["Con dominio público"]
-      GW[api-gateway]:::pub
-      RT[realtime · 1 réplica]:::pub
-      GM[game · 1 réplica<br/>solo el puerto WS es público]:::pub
+      GW[api-gateway<br/>planazo-api-gateway-production.up.railway.app]:::pub
+      RT[realtime · 1 réplica<br/>planazo-realtime-production.up.railway.app]:::pub
+      GM[game · 1 réplica<br/>planazo-game-production.up.railway.app<br/>REST y STOMP en el mismo puerto 8082]:::pub
     end
     subgraph Privado["Solo red privada *.railway.internal"]
       BK[booking]:::priv
       PR[promo]:::priv
     end
-    PG1[(Postgres booking)]:::db
-    PG2[(Postgres promo)]:::db
-    PG3[(Postgres realtime)]:::db
+    PG[(Postgres<br/>realtime: public · game: minijuego)]:::db
     RD[(Redis)]:::db
   end
 
   U -->|https| FE
   U -->|"https /api"| GW
   U -.->|"wss /ws"| RT
-  U -.->|"wss /rooms/:code/play"| GM
-  GW -->|http privado| BK
-  GW -->|http privado| PR
-  GW -->|http privado| GM
-  BK --- PG1
-  PR --- PG2
+  U -.->|"wss /ws/websocket (STOMP)"| GM
+  GW -->|http privado :3001| BK
+  GW -->|http privado :3002| PR
+  GW -->|http privado :8082 + Bearer| GM
   PR --- RD
   GM --- RD
-  RT --- PG3
+  GM --- PG
+  RT --- PG
   BK & PR & GM -->|publish| RD
   RD -->|subscribe| RT
 ```
@@ -150,9 +147,10 @@ flowchart LR
 Decisiones:
 
 - `booking` y `promo` **no tienen dominio público**: solo el gateway los alcanza por la red privada de Railway. Aunque alguien conociera su URL, sin `x-gateway-key` responden `401`.
-- `game` necesita dominio público por el WebSocket; su HTTP también exige `x-gateway-key`, así que las rutas `/rooms` solo funcionan a través del gateway.
+- `game` necesita dominio público por el WebSocket. Su REST **no usa `x-gateway-key`**: exige un `Authorization: Bearer` válido, que es el que el gateway reenvía. Sin un token del gateway no responde.
 - `realtime` y `game` con **una réplica**: tienen estado en memoria (suscripciones, salas).
-- `JWT_SECRET` y `GATEWAY_KEY` son **variables compartidas** del proyecto de Railway, no se pegan en cada servicio a mano ni viajan por chat.
+- `JWT_SECRET` y `GATEWAY_KEY` se generaron una vez con `openssl` y están como variables de cada servicio (las pone `planazo-infra/scripts/railway-deploy-core.sh`; en `game` se llama `JWT_SECRETO`). No viajan por chat.
+- `booking` y `promo` no tienen base de datos todavía: su estado vive en memoria y un redespliegue lo reinicia.
 
 ---
 
@@ -272,38 +270,36 @@ sequenceDiagram
   actor J1 as Jugador 1
   actor J2 as Jugador 2
   participant GW as api-gateway
-  participant GM as game
-  participant RD as Redis
+  participant GM as game (Java)
   participant BUS as bus
+  participant RT as realtime
+  participant RD as Redis
+  participant PG as PostgreSQL
 
-  J1->>GW: POST /api/rooms
-  GW->>GM: POST /rooms (x-user-id u1, x-user-name "Juan Diego")
-  GM-->>J1: Room { code A7X9, status lobby }
-  J2->>GW: POST /api/rooms/A7X9/join
-  GW->>GM: POST /rooms/A7X9/join
-  GM->>BUS: ROOM.JOIN [room:A7X9]
-  GM-->>J2: Room { players [u1, u2] }
+  J1->>RT: ws · AUTH · SUBSCRIBE salas · SUBSCRIBE salas:sala-004
+  J1->>GW: POST /api/salas/sala-004/jugadores (Bearer)
+  GW->>GM: POST /api/v1/salas/sala-004/jugadores (Bearer reenviado)
+  GM->>BUS: LOBBY.ROOMS_UPDATE [salas]
+  GM-->>J1: 201 { data: ResumenSala }
+  J1->>GM: STOMP CONNECT (Authorization: Bearer) · SEND /app/salas/sala-004/registrar-sesion
+  J2->>GW: POST /api/salas/sala-004/jugadores
+  GW->>GM: (ídem)
+  Note over GM: sala llena → CUENTA_REGRESIVA 3 s → EN_CURSO
 
-  J1->>GM: ws /rooms/A7X9/play · { type AUTH, token }
-  J2->>GM: ws /rooms/A7X9/play · { type AUTH, token }
-  J1->>GW: POST /api/rooms/A7X9/start
-  GW->>GM: POST /rooms/A7X9/start (>= 2 jugadores)
-
-  loop cada 50 ms (20 Hz)
-    J1->>GM: { type INTENT, dir up }
-    J2->>GM: { type INTENT, dir left }
-    GM->>GM: applyIntents() · step() · colisiones
-    opt alguien comió
-      GM->>RD: ZADD leaderboard:A7X9 GT score player:u1
-      GM->>RD: ZREVRANGE leaderboard:A7X9 0 9 WITHSCORES
-    end
-    GM-->>J1: { type STATE, state { snakes, food, leaderboard ordenado } }
-    GM-->>J2: { type STATE, state }
+  loop cada 50 ms (20 Hz), hilo del SalaRuntime
+    J1->>GM: SEND /app/salas/sala-004/mover { direccion ARRIBA }
+    J2->>GM: SEND /app/salas/sala-004/mover { direccion IZQUIERDA }
+    GM->>GM: drena la cola de movimientos · tick · colisiones · comida
+    GM->>BUS: GAME.STATE_UPDATE [salas:sala-004] { jugadores, comida, tiempoRestanteSegundos }
+    BUS->>RT: persiste con seq, difunde a salas:sala-004
+    RT-->>J1: EVENT GAME.STATE_UPDATE
+    RT-->>J2: EVENT GAME.STATE_UPDATE
   end
 
-  GM->>RD: ZADD hall-of-fame GT ...
-  GM->>BUS: ROUND.END [room:A7X9] { leaderboard, winnerId }
-  Note over GM,RD: score = puntos × 1e6 + (1e6 − segundos). Mismo orden para todos.
+  GM->>PG: INSERT resultados_partida + puntajes_jugador
+  GM->>RD: ZINCRBY leaderboard <puntaje> <jugadorId>
+  GM->>BUS: GAME.STATE_UPDATE { estado FINALIZADA, resultado } · GAME.PARTIDA_FINALIZADA [global]
+  Note over GM,RD: El marcador se lee del sorted set ya ordenado: mismo orden para todos.
 ```
 
 ### 4.5 · Planificación · de una frase a una ruta
@@ -358,8 +354,8 @@ flowchart LR
 | Campo | Quién lo pone | Para qué |
 |---|---|---|
 | `id` | el productor (UUID v4) | descartar duplicados en `realtime` y en el cliente |
-| `type` | el productor | `PLACE.UPDATE`, `PROMO.PUSH`, `SNAKE.SCORE`… |
-| `topics[]` | el productor | a quién va: `zone:zona-g`, `place:p7`, `user:u1`, `room:A7X9` |
+| `type` | el productor | `PLACE.UPDATE`, `PROMO.PUSH`, `GAME.STATE_UPDATE`… |
+| `topics[]` | el productor | a quién va: `zone:zona-g`, `place:p7`, `user:u1`, `salas`, `salas:sala-004`, `global` |
 | `payload` | el productor | el contenido, **plano**, con la forma de `types.ts` (`PROMO.PUSH` → `Promo`, `RESERVE.OK` → `Reservation`, `INV.UPDATE` → `{ placeId, slot }`) |
 | `at` | el productor (epoch ms) | cuándo pasó |
 | `seq` | **solo `realtime`** al persistir | orden global y punto de reanudación |
@@ -417,6 +413,8 @@ erDiagram
   }
 ```
 
+> `booking` y `promo` guardan hoy este modelo en memoria; el diagrama es el objetivo en PostgreSQL. Solo `promo:{id}:stock` ya vive en Redis.
+
 ```mermaid
 erDiagram
   %% promo (PostgreSQL) + Redis
@@ -458,7 +456,7 @@ erDiagram
   }
 ```
 
-`game` no tiene PostgreSQL. En memoria: `rooms[code] = { hostId, status, players[], snakes, food, tick, endsAt }`. En Redis: `leaderboard:{code}` y `hall-of-fame` como sorted sets.
+`game` (Java) usa el esquema `minijuego` del mismo Postgres de `realtime`, con migraciones Flyway: `salas (id, codigo, capacidad)` como catálogo fijo, `resultados_partida (id, sala_id, sala_codigo, ganador_jugador_id, ganador_jugador_nombre, motivo_victoria, iniciada_en, finalizada_en)` y `puntajes_jugador`. La partida en curso vive en memoria dentro de su `SalaRuntime`; el leaderboard global es un sorted set en Redis (db 1).
 
 ---
 
@@ -471,7 +469,7 @@ flowchart LR
 
   subgraph org["planazo-team"]
     G[.github<br/>plantillas de PR e issues<br/>portada]:::meta
-    T[planazo-service-template<br/>NestJS + health + bus + Dockerfile + CI]:::meta
+    T[planazo-service-template<br/>NestJS + health + bus + Dockerfile + CI<br/>game es Java y no la usa]:::meta
     I[planazo-infra<br/>docker compose · k6 · contratos · bruno]:::meta
     F[planazo-frontend<br/>+ docs/ del proyecto]:::repo
     A[planazo-api-gateway]:::repo
@@ -481,10 +479,10 @@ flowchart LR
     R[planazo-realtime]:::repo
   end
 
-  T -.->|apply-template.sh| B & M & R
+  T -.->|apply-template.sh| B & P & R
   F -->|types.ts es el contrato| I
   I -->|compose construye| A & B & P & M & R
   I -.->|k6 prueba| A
 ```
 
-Cada repo: `main` protegida, PR con 1 aprobación y check `ci` verde, squash merge, CODEOWNERS pide revisión al dueño, Dependabot semanal. Detalle en [`plan-organizacion.md`](plan-organizacion.md).
+Cada repo: entrar a `main` por PR con el check `ci` verde y squash merge; CODEOWNERS pide revisión al dueño; Dependabot semanal. GitHub lo hace cumplir en `planazo-frontend` (PR + `ci`, sin aprobación obligatoria desde el 8 de octubre) y en `.github`; en los privados es convención. Detalle en [`plan-organizacion.md`](plan-organizacion.md).

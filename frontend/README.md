@@ -15,8 +15,8 @@ Sin configurar nada arranca en **modo mock**: los servicios corren simulados en 
 
 | Modo | Qué hace | Cuándo |
 |---|---|---|
-| `mock` | booking, promo, game, agent y el Realtime Gateway corren simulados en el navegador | Hoy, mientras no existe el backend. Es el valor por defecto |
-| `live` | HTTP contra el API Gateway y WebSocket contra el Realtime Gateway y game | Hoy, contra gateway, booking y promo. Realtime y game se conectan cuando estén desplegados |
+| `mock` | booking, promo, game, agent y el Realtime Gateway corren simulados en el navegador | Para desarrollar sin backend. Es el valor por defecto en local |
+| `live` | HTTP contra el API Gateway, WebSocket contra realtime y STOMP contra game | **Producción** (https://planazo-frontend.vercel.app), contra los cinco servicios en Railway |
 
 Se cambia con una sola variable. Copia `.env.example` a `.env.local`:
 
@@ -49,9 +49,9 @@ Los datos viven en memoria de la pestaña y se reinician al recargar.
 |---|---|---|
 | **RT‑1** Mapa en tiempo real | Los pines y la ficha se actualizan con `PLACE.UPDATE` e `INV.UPDATE` | [`cliente/mapa`](src/app/cliente/mapa/page.tsx) · [`cliente/lugar/[id]`](src/app/cliente/lugar/[id]/page.tsx) |
 | **RT‑2** Consistencia ante desconexión | Guarda el último `seq`, pide `RESUME` al reconectar y descarta por `id` | [`lib/realtime/client.ts`](src/lib/realtime/client.ts) |
-| **RT‑3** Leaderboard en vivo | Renderiza el estado que emite el servidor; envía solo intenciones | [`cliente/juego/[code]`](src/app/cliente/juego/[code]/page.tsx) · [`lib/game/connection.ts`](src/lib/game/connection.ts) |
+| **RT‑3** Leaderboard en vivo | Dibuja el snapshot de cada tick que manda el servidor; envía solo direcciones | [`cliente/juego`](src/app/cliente/juego/page.tsx) · [`components/TableroSnake.tsx`](src/components/TableroSnake.tsx) · [`lib/game/client.ts`](src/lib/game/client.ts) |
 | **CC‑1** Promociones limitadas | Muestra el stock en vivo y explica el rechazo si se agotó | [`components/PromoCard.tsx`](src/components/PromoCard.tsx) |
-| **CC‑2** Leaderboard concurrente | Muestra el orden que resuelve el servidor, con desempate determinista | [`lib/mock/game.ts`](src/lib/mock/game.ts) |
+| **CC‑2** Leaderboard concurrente | Muestra el marcador global tal como lo ordena el servidor (`GET /api/leaderboard`) | [`cliente/juego`](src/app/cliente/juego/page.tsx) · [`lib/mock/game.ts`](src/lib/mock/game.ts) |
 | **CC‑3** Cupos limitados | Envía la `version` leída; ante `409` recarga y explica | [`cliente/lugar/[id]`](src/app/cliente/lugar/[id]/page.tsx) · [`negocio`](src/app/negocio/page.tsx) |
 
 > En el panel del negocio, la **versión base se toma cuando el usuario empieza a editar**, no cuando guarda. Si se tomara al guardar, un cambio de otro dispositivo nunca se detectaría.
@@ -66,8 +66,7 @@ Los datos viven en memoria de la pestaña y se reinician al recargar.
 | `/cliente/mapa` | cliente | Mapa de Zona G y Zona T con cupos en vivo y filtros por categoría |
 | `/cliente/lugar/:id` | cliente | Ficha, promociones, eventos y reserva por franja |
 | `/cliente/agente` | cliente | Describe tu plan y recibe lugares sugeridos |
-| `/cliente/juego` | cliente | Crear sala o unirse con un código, y mejores puntajes |
-| `/cliente/juego/:code` | cliente | Sala de espera, partida y resultado |
+| `/cliente/juego` | cliente | Salas en vivo, tablero, jugadores y marcador global: el cliente de planazo-game con su mismo diseño |
 | `/cliente/planes` | cliente | Mis reservas y mis cupones |
 | `/negocio` | negocio | Cupos por franja, eventos, lanzar promoción y reservas entrantes |
 
@@ -84,7 +83,7 @@ src/
 └── lib/
     ├── api/              interfaz de servicios + implementación live y mock
     ├── realtime/         cliente de tiempo real y transporte WebSocket
-    ├── game/             canal de la partida
+    ├── game/             cliente del minijuego: REST por el gateway, STOMP para comandos, estado por realtime
     ├── mock/             servicios simulados: gateway, booking/promo/agent, game
     ├── seed.ts           catálogo semilla de Zona G y Zona T
     ├── session.ts        usuarios semilla
@@ -130,16 +129,18 @@ Los errores esperados responden con `{ code, message }`: `VERSION_CONFLICT`, `SI
 ← { type: "REPLAY", events: [...] }
 ```
 
-Tópicos: `zone:<zona>`, `place:<id>`, `user:<id>`, `room:<código>`.
+Tópicos: `zone:<zona>`, `place:<id>`, `user:<id>`, `salas`, `salas:<salaId>`, `global`.
 
-**Partida** — STOMP sobre `NEXT_PUBLIC_GAME_URL/ws/websocket` (planazo-game, Java). El JWT va en el header `Authorization` del frame CONNECT.
+**Partida** — comandos por STOMP sobre `NEXT_PUBLIC_GAME_URL/ws/websocket` (planazo-game, Java), con el JWT en el header `Authorization` del frame CONNECT; **estado por realtime**, porque game lo publica al bus:
 
 ```
-SUBSCRIBE /topic/salas                      lista de salas en vivo (ResumenSala[])
-SUBSCRIBE /topic/salas/{id}                 snapshot de la sala en cada tick (EstadoJuegoDTO)
-SUBSCRIBE /user/queue/errores               errores propios { codigo, mensaje }
-SEND      /app/salas/{id}/registrar-sesion  tras suscribirse: el servidor responde con el estado actual (y reconecta, SNK-07)
-SEND      /app/salas/{id}/mover             { direccion: "ARRIBA" | "ABAJO" | "IZQUIERDA" | "DERECHA" }
+STOMP
+  SUBSCRIBE /user/queue/errores               errores propios { codigo, mensaje }
+  SEND      /app/salas/{id}/registrar-sesion  tras unirse: asocia el socket al jugador (y reconecta, SNK-07)
+  SEND      /app/salas/{id}/mover             { direccion: "ARRIBA" | "ABAJO" | "IZQUIERDA" | "DERECHA" }
+realtime
+  SUBSCRIBE salas            → EVENT LOBBY.ROOMS_UPDATE  payload ResumenSala[]
+  SUBSCRIBE salas:{id}       → EVENT GAME.STATE_UPDATE   payload EstadoJuegoDTO, en cada tick
 ```
 
 La pantalla del juego (`src/app/cliente/juego`) es el cliente de prueba de planazo-game (`test-client.html`) llevado a la app con su mismo diseño; el tablero se dibuja en `src/components/TableroSnake.tsx`. En modo `mock` el simulador del navegador habla este mismo protocolo (`src/lib/mock/game.ts`).
@@ -150,7 +151,7 @@ La pantalla del juego (`src/app/cliente/juego`) es el cliente de prueba de plana
 
 1. En Vercel: **Add New → Project** e importa el repositorio.
 2. **Root Directory:** `frontend`. Vercel detecta Next.js solo; no hay que tocar el build.
-3. Variables de entorno: ninguna para el modo mock. Para live, `NEXT_PUBLIC_API_MODE=live` y `NEXT_PUBLIC_API_URL`; las de realtime y game cuando existan.
+3. Variables de entorno: ninguna para el modo mock. Para live, `NEXT_PUBLIC_API_MODE=live`, `NEXT_PUBLIC_API_URL`, `NEXT_PUBLIC_REALTIME_URL` y `NEXT_PUBLIC_GAME_URL` (las cuatro ya están en producción).
 4. **Deploy.**
 
 Cada push a `main` despliega a producción, y cada pull request obtiene su propia URL de vista previa.

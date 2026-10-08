@@ -53,6 +53,33 @@ Sigue pendiente, y quién lo destraba:
 | Invitación de Diego Rozo (pendiente desde el 22 sep) | Diego Rozo | Aceptarla desde el correo o en github.com/planazo-team. Si venció, reenviarla desde *People → Pending invitations* |
 | Desplegar gateway en Railway y frontend en Vercel | Juan Diego | `railway.json` ya declara builder y health check; variables en §8. En Vercel: importar el repo con Root Directory `frontend` y las cuatro variables de `.env.example` |
 
+### Actualización del 8 de octubre de 2026
+
+Semana 3 del cronograma. El hito de la semana 4 ("demo interna con los 6 retos en la nube") quedó adelantado: **los cinco servicios están en Railway y el frontend en Vercel en modo `live`**, probado de punta a punta.
+
+| Qué | Dónde | Detalle |
+|---|---|---|
+| `promo` reescrito al contrato | PR #14 (mergeado) | NestJS sobre la plantilla, stock en Redis con Lua, bus, camelCase, guard del gateway. Cierra los puntos 1, 3, 4, 5 y 6 del issue #3; queda PostgreSQL para cupones. |
+| Frontend conectado y rediseñado | PR #12 (mergeado) | `live` con realtime y game opcionales; nueva tipografía, navegación y pantallas. |
+| Minijuego de Diego integrado | PR #17 (mergeado) | `/cliente/juego` es su `test-client.html` con el mismo diseño: REST por el gateway, comandos por STOMP, estado por realtime. |
+| Script de despliegue | `planazo-infra` PR #4 (mergeado) | `scripts/railway-deploy-core.sh` crea gateway, booking y promo con sus variables. |
+| Railway | proyecto único | gateway público; booking y promo por red privada; realtime y game públicos; un Postgres (realtime `public`, game `minijuego`) y un Redis. Secretos iguales en cada servicio. |
+| Vercel | `planazo-frontend` | `NEXT_PUBLIC_API_MODE=live` y las tres URLs. Cada push a `main` despliega; cada PR tiene preview. |
+| Protección de `main` en `planazo-frontend` | GitHub | Se quitó la aprobación obligatoria (quedaba bloqueando la integración con un solo revisor disponible). Sigue exigiendo PR y el check `ci`. |
+| PRs viejos del frontend | #1, #7, #8, #9, #10 | Cerrados: quedaron incluidos en #12. |
+
+Pendiente, y quién lo destraba:
+
+| Pendiente | Quién |
+|---|---|
+| PostgreSQL en `booking` (reservas) y `promo` (cupones): hoy en memoria, un redespliegue los borra | Fabián |
+| Decidir si `realtime` persiste `GAME.STATE_UPDATE` (20 eventos/s por sala) o solo lo difunde | Camilo y Diego |
+| Reescribir `k6/cc2-game-score.js` al protocolo STOMP de `game` y correr los cuatro k6 contra Railway | Juan Diego y Diego |
+| En `game`: restringir CORS, apagar `POST /api/v1/auth/dev-token` fuera de desarrollo | Diego |
+| Lint de `planazo-realtime` en rojo (4 variables sin usar); no bloquea el deploy porque Railway construye con el Dockerfile | Camilo |
+| `ANTHROPIC_API_KEY` en el gateway para que `/api/plan` deje de responder plantilla | Juan Diego |
+| Cerrar los PRs de Dependabot obsoletos en `planazo-game` (son de npm; el repo es Java) | Juan Diego |
+
 ---
 
 ## 0 · Diagnóstico: qué hay hoy
@@ -295,6 +322,8 @@ La semana 1 empezó el lunes 21 de septiembre de 2026.
 
 Dependencia crítica: **`realtime` desplegado en la semana 2.** Si se atrasa, `promo`, `booking` y `game` pueden seguir publicando al bus en local con el compose, pero la demo en la nube se corre una semana.
 
+**Estado al 8 de octubre (semana 3):** realtime estuvo arriba el 2 de octubre y se redesplegó el 8 con los secretos definitivos; los cinco servicios y el frontend están en producción. Lo de las semanas 4 a 6 que sigue abierto: k6 contra Railway, PostgreSQL en booking y promo, métricas de realtime y el agente con Claude API.
+
 ---
 
 ## 8 · Despliegue y variables
@@ -343,7 +372,7 @@ Ojo: exigir el check `ci` **antes** de que el workflow exista bloquea todos los 
 |---|---|---|
 | 1 | ¿Repos públicos o privados? | **Todos públicos.** Es un proyecto académico, facilita que los evaluadores lo vean y Vercel/Railway gratuitos no ponen trabas. **Además es la única forma de tener protección de `main` y secret scanning sin pagar GitHub Pro:** en el plan gratuito, los repos privados no admiten reglas de rama. El historial de los 7 repos ya se escaneó y no contiene secretos ni `.env`. Si hay razón para privado, entonces todos privados, incluido el frontend, y se acepta trabajar sin protección de rama. |
 | 2 | ¿Azure DevOps o GitHub Projects para las historias? | **GitHub Projects** (un tablero a nivel org con las 25 historias, cada una un issue en su repo). Tener el tablero al lado del código evita mantener dos sitios. Si la materia exige Azure DevOps, entonces Azure para historias y GitHub solo para código, sin duplicar. |
-| 3 | ¿`promo` se reescribe en NestJS o se queda en Express? | **Se queda en Express** si Fabián aplica las correcciones de §6 esta semana. El stack no es el reto; el mecanismo sí. |
+| 3 | ¿`promo` se reescribe en NestJS o se queda en Express? | **Decidido el 8 de octubre: se reescribió en NestJS** sobre la plantilla (PR #14), porque las correcciones de §6 tocaban casi todo el código y la plantilla ya traía guard, identidad y bus. |
 | 4 | ¿1 aprobación obligatoria en PRs? | **Sí.** Cuesta 10 minutos por PR y es lo único que habría detectado los desvíos de `promo` a tiempo. |
 | 5 | ¿Docs en `planazo-frontend/docs` o repo `planazo-docs`? | **Se quedan donde están** hasta la semana 7. Moverlos ahora es churn sin beneficio. El repo `.github` de la org apunta a ellos desde la portada. |
 
