@@ -2,6 +2,7 @@
 
 Todo lo que alguien necesita saber para entrar al proyecto sin tener que preguntar. Si algo aquí contradice a otro documento, **este manda**, y hay que corregir el otro.
 
+- **Estado de la aplicación (foto con fecha):** [`estado.md`](estado.md) — qué está en producción, qué se verificó y qué falta.
 - **Dominios y fronteras:** [`dominios.md`](dominios.md) — qué posee cada servicio y quién es su dueño.
 - **Diagramas:** [`diagramas.md`](diagramas.md) — contexto, componentes, despliegue, secuencias de los seis retos, modelo de datos.
 - **Especificación técnica por servicio:** [`arquitectura.md`](arquitectura.md) y el README de cada repo.
