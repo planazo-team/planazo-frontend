@@ -2,14 +2,12 @@ import type {
   ApiResult,
   Category,
   Coupon,
-  HallEntry,
   Place,
   PlaceDetail,
   PlaceEvent,
   PlanResult,
   Promo,
   Reservation,
-  Room,
   Slot,
   Zone,
 } from '../types';
@@ -45,11 +43,8 @@ export interface Api {
     durationS: number;
   }): Promise<ApiResult<Promo>>;
 
-  // game (lobby por HTTP; la partida va por su propio WebSocket)
-  createRoom(): Promise<ApiResult<Room>>;
-  joinRoom(code: string): Promise<ApiResult<Room>>;
-  startRoom(code: string): Promise<ApiResult<Room>>;
-  hallOfFame(): Promise<HallEntry[]>;
+  // El minijuego no pasa por aquí: tiene su propio cliente en lib/game/client.ts
+  // (REST por el gateway + STOMP directo contra planazo-game).
 
   /** Herramientas que solo existen en modo demo. */
   demo?: {

@@ -1,3 +1,4 @@
+import type { Direccion, EntradaLeaderboard, EstadoJuego, ResumenSala } from '../game/types';
 import type { ApiResult, Dir, GamePlayer, GameState, HallEntry, LeaderEntry, Point, Room } from '../types';
 import { gateway } from './gateway';
 
@@ -44,6 +45,11 @@ interface Sim {
   reachedAt: Map<string, number>;
   listeners: Set<(s: GameState) => void>;
   timer?: ReturnType<typeof setInterval>;
+  /** Salas fijas del minijuego: nombre visible, cupo y cuenta regresiva de arranque. */
+  nombre?: string;
+  capacidad?: number;
+  cuentaRegresivaHasta?: number;
+  arranque?: ReturnType<typeof setTimeout>;
 }
 
 class MockGame {
@@ -53,6 +59,157 @@ class MockGame {
   constructor() {
     // Sala abierta permanente para probar "unirme con un código" sin una segunda persona.
     this.seedRoom('PLAN', 'bot-host', 'Camilo');
+    // Catálogo fijo del minijuego (V1__catalogo_salas_y_resultados.sql), con cupo 2
+    // para que un solo bot complete la sala y la partida arranque sola.
+    for (const [id, nombre] of [['sala-001', 'Sala Bogotá'], ['sala-002', 'Sala Medellín'], ['sala-003', 'Sala Cali'], ['sala-004', 'Sala Cartagena']]) {
+      const sim = this.blank(id, 'catalogo');
+      sim.nombre = nombre;
+      sim.capacidad = 2;
+      this.rooms.set(id, sim);
+    }
+  }
+
+  /* ---------------- salas fijas: el protocolo de planazo-game ---------------- */
+
+  private static readonly DIR_A_DIRECCION: Record<Dir, Direccion> = { up: 'ARRIBA', down: 'ABAJO', left: 'IZQUIERDA', right: 'DERECHA' };
+  private static readonly DIRECCION_A_DIR: Record<Direccion, Dir> = { ARRIBA: 'up', ABAJO: 'down', IZQUIERDA: 'left', DERECHA: 'right' };
+
+  private fijas(): Sim[] {
+    return [...this.rooms.values()].filter((s) => s.capacidad !== undefined);
+  }
+
+  private estadoSala(sim: Sim): ResumenSala['estado'] {
+    if (sim.status === 'playing') return 'EN_CURSO';
+    if (sim.status === 'finished') return 'FINALIZADA';
+    if (sim.cuentaRegresivaHasta && sim.cuentaRegresivaHasta > Date.now()) return 'CUENTA_REGRESIVA';
+    return 'ESPERANDO_JUGADORES';
+  }
+
+  private resumen(sim: Sim): ResumenSala {
+    return {
+      id: sim.code,
+      codigo: sim.nombre ?? sim.code,
+      capacidad: sim.capacidad ?? COLORS.length,
+      cantidadJugadores: sim.players.length,
+      estado: this.estadoSala(sim),
+      nombresJugadores: sim.players.map((p) => p.name),
+    };
+  }
+
+  listarSalas(): ResumenSala[] {
+    return this.fijas().map((s) => this.resumen(s));
+  }
+
+  unirseSala(salaId: string, who: { id: string; name: string }): { ok: true; sala: ResumenSala } | { ok: false; error: string } {
+    const sim = this.rooms.get(salaId);
+    if (!sim || sim.capacidad === undefined) return { ok: false, error: 'La sala no existe.' };
+    if (sim.players.some((p) => p.id === who.id)) return { ok: true, sala: this.resumen(sim) };
+    if (sim.status === 'playing') return { ok: false, error: 'La partida ya está en curso. Espera a que termine.' };
+    if (sim.players.length >= sim.capacidad) return { ok: false, error: 'La sala está llena.' };
+    if (sim.status === 'finished') this.reset(sim);
+    this.addPlayer(sim, who.id, who.name, false);
+    this.broadcast(sim);
+    // Alguien más entra a los pocos segundos; cuando la sala se llena, arranca sola.
+    if (sim.players.length < sim.capacidad) setTimeout(() => this.botJoins(salaId), 2500);
+    this.quizasArrancar(sim);
+    return { ok: true, sala: this.resumen(sim) };
+  }
+
+  salirSala(salaId: string, playerId: string) {
+    const sim = this.rooms.get(salaId);
+    if (!sim) return;
+    sim.players = sim.players.filter((p) => p.id !== playerId);
+    sim.snakes.delete(playerId);
+    if (sim.players.length < (sim.capacidad ?? 2)) {
+      clearTimeout(sim.arranque);
+      sim.cuentaRegresivaHasta = undefined;
+    }
+    if (sim.status === 'playing' && sim.players.filter((p) => p.alive).length <= 1) this.finish(sim);
+    else this.broadcast(sim);
+  }
+
+  /** Suscripción a una sala fija en el formato de planazo-game. Devuelve la función para cancelarla. */
+  conectarSala(salaId: string, playerId: string, onEstado: (e: EstadoJuego) => void): () => void {
+    const sim = this.rooms.get(salaId);
+    if (!sim) return () => {};
+    const listener = (s: GameState) => onEstado(this.estadoJuego(sim, s));
+    sim.listeners.add(listener);
+    queueMicrotask(() => listener(this.state(sim)));
+    // Mientras se espera o se cuenta hacia atrás no hay ticks: se refresca el rótulo cada segundo.
+    const tic = setInterval(() => {
+      if (sim.status !== 'playing') listener(this.state(sim));
+    }, 1000);
+    return () => {
+      clearInterval(tic);
+      sim.listeners.delete(listener);
+    };
+  }
+
+  moverSala(salaId: string, playerId: string, direccion: Direccion) {
+    const sim = this.rooms.get(salaId);
+    const sn = sim?.snakes.get(playerId);
+    const dir = MockGame.DIRECCION_A_DIR[direccion];
+    if (sn && dir !== OPPOSITE[sn.dir]) sn.next = dir;
+  }
+
+  leaderboardGlobal(limite: number): EntradaLeaderboard[] {
+    const total = new Map<string, number>();
+    for (const h of this.hall) total.set(h.name, (total.get(h.name) ?? 0) + h.score);
+    return [...total.entries()]
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, limite)
+      .map(([nombre, puntos], i) => ({ posicion: i + 1, jugadorId: nombre, jugadorNombre: nombre, puntajeTotal: puntos }));
+  }
+
+  private quizasArrancar(sim: Sim) {
+    if (sim.status !== 'lobby' || sim.players.length < (sim.capacidad ?? 2) || sim.cuentaRegresivaHasta) return;
+    sim.cuentaRegresivaHasta = Date.now() + 3000;
+    this.broadcast(sim);
+    sim.arranque = setTimeout(() => {
+      sim.cuentaRegresivaHasta = undefined;
+      if (sim.players.length >= (sim.capacidad ?? 2)) this.begin(sim);
+    }, 3000);
+  }
+
+  private estadoJuego(sim: Sim, s: GameState): EstadoJuego {
+    const estado = this.estadoSala(sim);
+    const resultado =
+      s.status === 'finished'
+        ? {
+            salaId: sim.code,
+            salaCodigo: sim.nombre ?? sim.code,
+            ganadorJugadorId: s.winnerId ?? null,
+            ganadorJugadorNombre: s.players.find((p) => p.id === s.winnerId)?.name ?? null,
+            motivoVictoria: 'ULTIMA_EN_PIE',
+            puntajes: s.leaderboard.map((e) => ({ jugadorId: e.playerId, jugadorNombre: e.name, puntaje: e.score })),
+            iniciadaEn: new Date(sim.startedAt).toISOString(),
+            finalizadaEn: new Date(sim.endsAt ?? Date.now()).toISOString(),
+          }
+        : null;
+    return {
+      salaId: sim.code,
+      salaCodigo: sim.nombre ?? sim.code,
+      estado,
+      capacidad: sim.capacidad ?? COLORS.length,
+      segundosCuentaRegresiva: sim.cuentaRegresivaHasta ? Math.max(0, Math.ceil((sim.cuentaRegresivaHasta - Date.now()) / 1000)) : 0,
+      anchoTablero: s.size,
+      altoTablero: s.size,
+      jugadores: s.players.map((p) => {
+        const sn = sim.snakes.get(p.id);
+        return {
+          jugadorId: p.id,
+          jugadorNombre: p.name,
+          cuerpo: s.snakes[p.id] ?? [],
+          direccion: MockGame.DIR_A_DIRECCION[sn?.dir ?? 'right'],
+          estado: p.alive ? ('VIVA' as const) : ('ELIMINADA' as const),
+          puntaje: p.score,
+          conectado: true,
+        };
+      }),
+      comida: s.food[0] ?? null,
+      tiempoRestanteSegundos: s.endsAt ? Math.max(0, Math.ceil((s.endsAt - Date.now()) / 1000)) : 0,
+      resultado,
+    };
   }
 
   /* ---------------- lobby ---------------- */
@@ -268,6 +425,8 @@ class MockGame {
 
   private reset(sim: Sim) {
     clearInterval(sim.timer);
+    clearTimeout(sim.arranque);
+    sim.cuentaRegresivaHasta = undefined;
     sim.status = 'lobby';
     sim.snakes.clear();
     sim.food = [];
@@ -298,6 +457,7 @@ class MockGame {
     if (!name) return;
     this.addPlayer(sim, `bot-${c}-${name}`, name, true);
     this.broadcast(sim);
+    if (sim.capacidad !== undefined) this.quizasArrancar(sim);
   }
 
   private freeCell(sim: Sim): Point {

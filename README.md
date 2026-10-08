@@ -13,11 +13,11 @@ Este repo (`planazo-frontend`) contiene el cliente y el panel del negocio. Cada 
 | Repo | Servicio | Dueño | Estado |
 |---|---|---|---|
 | `planazo-frontend` *(este)* | Next.js — cliente y panel · **docs del proyecto** | Juan Diego | ✅ `mock` y `live` probados; Vercel |
-| [`planazo-api-gateway`](https://github.com/planazo-team/planazo-api-gateway) | Entrada HTTP + `agent` como módulo interno | Juan Diego | ✅ Listo; se despliega con `planazo-infra/scripts/railway-deploy-core.sh` |
-| [`planazo-booking`](https://github.com/planazo-team/planazo-booking) | Cupos, reservas, eventos | Fabián | ✅ Implementado (CC-3); estado en memoria |
-| [`planazo-promo`](https://github.com/planazo-team/planazo-promo) | Promociones y cupones | Fabián | 🟡 Reescrito al contrato (CC-1 en Redis), PR en revisión |
-| [`planazo-game`](https://github.com/planazo-team/planazo-game) | Minijuego Snake | Diego Rozo | 🟡 Implementado en Java + Spring Boot; integración pendiente |
-| [`planazo-realtime`](https://github.com/planazo-team/planazo-realtime) | WebSocket, event log | Juan Camilo | 🟡 Implementado; redespliegue en Railway pendiente |
+| [`planazo-api-gateway`](https://github.com/planazo-team/planazo-api-gateway) | Entrada HTTP + `agent` como módulo interno | Juan Diego | ✅ En Railway (`planazo-api-gateway-production.up.railway.app`) |
+| [`planazo-booking`](https://github.com/planazo-team/planazo-booking) | Cupos, reservas, eventos | Fabián | ✅ En Railway (CC-3); estado en memoria |
+| [`planazo-promo`](https://github.com/planazo-team/planazo-promo) | Promociones y cupones | Fabián | ✅ Alineado al contrato (CC-1 en Redis), en Railway |
+| [`planazo-game`](https://github.com/planazo-team/planazo-game) | Minijuego Snake | Diego Rozo | ✅ Java + Spring Boot, en Railway e integrado en el frontend |
+| [`planazo-realtime`](https://github.com/planazo-team/planazo-realtime) | WebSocket, event log | Juan Camilo | ✅ En Railway; reparte los eventos de promo, booking y game |
 | [`planazo-infra`](https://github.com/planazo-team/planazo-infra) | Compose local, k6, contratos, Bruno | Juan Diego | ✅ |
 | [`planazo-service-template`](https://github.com/planazo-team/planazo-service-template) | Plantilla NestJS de los servicios | Juan Diego | ✅ |
 | [`.github`](https://github.com/planazo-team/.github) | Plantillas de PR e issues de la org | Juan Diego | ✅ |

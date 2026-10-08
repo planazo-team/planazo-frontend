@@ -284,12 +284,12 @@ Zonas: `zona-g` (centro `4.6553, -74.0566`), `zona-t` (centro `4.6672, -74.0536`
 
 | Pieza | Estado |
 |---|---|
-| `frontend` | **Existe y funciona.** Modo `mock` completo, y modo `live` probado de punta a punta contra gateway, booking y promo (login, mapa, ficha, reserva con 409, promos, cupones, panel del negocio). Realtime y game son opcionales en `live`. Next 16.3.7, tipografía y tema nuevos. Desplegado en Vercel. |
+| `frontend` | **En producción en Vercel, en modo `live` contra los cinco servicios.** Probado de punta a punta: login, mapa, ficha, reserva con 409, promos, cupones, panel del negocio, eventos en vivo y una partida de cuatro jugadores en el minijuego. |
 | `api-gateway` | **Existe y está probado en local y en Docker.** Auth demo, proxy con `x-gateway-key` y `x-user-name`, CORS con lista blanca, rate limit, `/api/health`, módulo `agent` con el contrato `PlanResult` y fallback a plantilla. NestJS 11 sobre Express 5. CI, Dockerfile y `railway.json` (health check en `/api/health`) listos. |
 | `booking` | **Implementado, en `main` desde el 2 de octubre.** Lugares, franjas, reservas con lock optimista (CC-3), panel del negocio y seed del catálogo. Estado en memoria por ahora. |
 | `promo` | **Reescrito sobre la plantilla NestJS** (PR en revisión): stock en Redis con decremento atómico (CC-1), bus, rutas en camelCase, guard del gateway. Promos y cupones en memoria por ahora. |
-| `game` | **Implementado por Diego, en `main` desde el 2 de octubre.** Java + Spring Boot con arquitectura hexagonal: dominio `Sala`/`Serpiente`, runtime de partida, leaderboard en Redis, eventos por Redis pub/sub, WebSocket STOMP, migración Flyway, Swagger y tests de ArchUnit. |
-| `realtime` | **Implementado por Camilo, en `main` desde el 2 de octubre.** Protocolo WebSocket completo (AUTH, SUBSCRIBE, RESUME, REPLAY) con Prisma y PostgreSQL para el event log. |
+| `game` | **Implementado por Diego y desplegado en Railway.** Java + Spring Boot con arquitectura hexagonal: dominio `Sala`/`Serpiente`, runtime de partida, leaderboard en Redis, migración Flyway, Swagger y tests de ArchUnit. Comandos por STOMP; el snapshot de cada tick y la lista de salas salen al bus (`GAME.STATE_UPDATE`, `LOBBY.ROOMS_UPDATE`) y llegan al frontend por realtime. El frontend usa su cliente (`test-client.html`) con el mismo diseño. |
+| `realtime` | **Implementado por Camilo y desplegado en Railway.** Protocolo WebSocket completo (AUTH, SUBSCRIBE, RESUME, REPLAY) con Prisma y PostgreSQL para el event log. Probado en producción: un `PROMO.PUSH` de promo llega al cliente suscrito a `zone:zona-t`. |
 | `planazo-infra` | **Existe.** Compose con Redis y tres Postgres, k6 de los cuatro retos de concurrencia/reconexión, contratos, colección Bruno. |
 | Conexión frontend ↔ gateway | **Probada de punta a punta** en local: login real, token emitido, rutas protegidas respondiendo, CORS bloqueando orígenes ajenos. |
 
