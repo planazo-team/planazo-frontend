@@ -24,13 +24,14 @@ Qué protegemos, contra qué, y con qué. Es un MVP académico sin datos sensibl
 - `POST /api/auth/demo { userId }` firma un JWT HS256 con `sub`, `name`, `role`, `placeId`, vence a **7 días**.
 - No hay contraseña: es login de demostración. Cualquiera puede ser `u1`. **Está bien y es deliberado** (ver §5).
 - El gateway verifica el token en cada petición; los servicios HTTP **no** vuelven a verificar. Lo que verifican es la llave del gateway (§2.2).
-- `game` y `realtime` sí verifican el JWT, porque sus WebSockets no pasan por el gateway. Usan el mismo `JWT_SECRET`. El token viaja en el **primer mensaje** del socket, nunca en la URL, para que no quede en logs de proxies ni en el historial.
+- `realtime` verifica el JWT por su cuenta porque su WebSocket no pasa por el gateway: el token viaja en el **primer mensaje** del socket (`AUTH`), nunca en la URL, para que no quede en logs de proxies ni en el historial.
+- `game` (Java) verifica el JWT en todo: en REST recibe el `Authorization: Bearer` que el gateway le reenvía, y en STOMP lo lee del header `Authorization` del frame `CONNECT` (un `CONNECT` sin token válido se rechaza). Usa el mismo secreto bajo el nombre `JWT_SECRETO` y lee los claims `sub` y `nombre`.
 
 ### 2.2 · Confianza entre gateway y servicios: `x-gateway-key`
 
 Los servicios confían en `x-user-id`, `x-user-name`, `x-user-role` y `x-user-place-id`. Si un servicio fuera alcanzable desde internet, cualquiera podría poner esos headers a mano. Dos capas lo impiden:
 
-1. **Red privada.** En Railway, `booking` y `promo` no tienen dominio público; solo el gateway los alcanza por `*.railway.internal`. `game` sí tiene dominio público (por el WebSocket), así que necesita la capa 2.
+1. **Red privada.** En Railway, `booking` y `promo` no tienen dominio público; solo el gateway los alcanza por `*.railway.internal`. `game` sí tiene dominio público (por el WebSocket) y **no usa `x-gateway-key`**: su barrera es el JWT del punto 2.1, que valida en cada petición.
 2. **Llave compartida.** El gateway agrega `x-gateway-key: <GATEWAY_KEY>` a todo lo que reenvía. Cada servicio rechaza con `401 GATEWAY_KEY_INVALIDA` cualquier petición HTTP sin la llave correcta, salvo `GET /health`. Si `GATEWAY_KEY` no está definida (desarrollo local), el guard deja pasar y lo dice en el log.
 
 El gateway **sobrescribe** los headers `x-user-*` con los datos del token: lo que mande el cliente con ese nombre se descarta. Está en `src/proxy/forward.ts`.
@@ -38,7 +39,7 @@ El gateway **sobrescribe** los headers `x-user-*` con los datos del token: lo qu
 ### 2.3 · Navegador: CORS, rate limit, helmet
 
 - **CORS con lista blanca.** `ALLOWED_ORIGINS` (separados por coma). En local `http://localhost:3000`; en producción la URL de Vercel. Un origen que no está en la lista no recibe `Access-Control-Allow-Origin` y el navegador bloquea la respuesta.
-- **Rate limit** por IP: 100 peticiones por minuto (`RATE_LIMIT_PER_MINUTE`). Responde `429 { code: RATE_LIMIT }`. Los k6 de carga se corren **directo contra los servicios** en local, o con un límite alto en un entorno de pruebas, no contra el gateway de producción.
+- **Rate limit** por IP: 100 peticiones por minuto por defecto (`RATE_LIMIT_PER_MINUTE`); en producción está en 600 para que una demo con varios navegadores detrás de la misma IP no se corte. Responde `429 { code: RATE_LIMIT }`. Los k6 de carga se corren **directo contra los servicios** en local, o con un límite alto en un entorno de pruebas, no contra el gateway de producción.
 - **helmet** pone los headers de seguridad estándar (`X-Content-Type-Options`, `X-Frame-Options`, etc.).
 
 ### 2.4 · Servicios: no arrancar mal configurados
@@ -51,8 +52,8 @@ El gateway **sobrescribe** los headers `x-user-*` con los datos del token: lo qu
 
 | Regla | `realtime` | `game` |
 |---|---|---|
-| Token en el primer mensaje (`AUTH`) | ✅ | ✅ |
-| Cerrar la conexión si no llega `AUTH` válido en 5 s | ✅ | ✅ |
+| Token en el primer mensaje (`AUTH`) | ✅ | ✅ (header `Authorization` del frame STOMP `CONNECT`) |
+| Cerrar la conexión si no llega `AUTH` válido en 5 s | ✅ | ✅ (rechaza el `CONNECT`) |
 | Solo suscribirse a `user:<id>` del propio token | ✅ | — |
 | Solo enviar intenciones, nunca posiciones | — | ✅ (el servidor es la autoridad) |
 | Límite de mensajes por segundo por conexión | recomendado | recomendado (20/s basta para 20 Hz) |
@@ -67,12 +68,12 @@ Todas las respuestas de error son `{ code, message }` con un mensaje para el usu
 
 | Control | Dónde | Estado |
 |---|---|---|
-| Secretos como **variables compartidas** del proyecto de Railway (`JWT_SECRET`, `GATEWAY_KEY`, `BUS_URL`) | Railway | por configurar al desplegar |
-| `booking` y `promo` sin dominio público | Railway | por configurar al desplegar |
+| Secretos iguales en cada servicio de Railway (`JWT_SECRET` = `JWT_SECRETO` de game, `GATEWAY_KEY`, `BUS_URL`) | Railway | ✅ configurados el 8 oct como variables por servicio (no como variables compartidas del proyecto) |
+| `booking` y `promo` sin dominio público | Railway | ✅ |
 | `.env` en `.gitignore` de todos los repos; solo `.env.example` se sube | todos los repos | ✅ |
 | Generar secretos con `openssl rand -hex 32`, nunca a mano | `planazo-infra/.env.example` | ✅ documentado |
 | `ANTHROPIC_API_KEY` solo en el gateway; los demás no la necesitan | Railway | ✅ por diseño |
-| Un Redis y tres Postgres **separados por servicio**: ningún servicio tiene credenciales de la base de otro | compose y Railway | ✅ en compose |
+| Bases **separadas por servicio**: ningún servicio tiene credenciales de la base de otro | compose y Railway | ⚠️ en Railway hay **un solo Postgres** que comparten `realtime` (esquema `public`) y `game` (esquema `minijuego`) con el mismo usuario; `booking` y `promo` aún no tienen base. Un Redis para todos. |
 
 ---
 
@@ -82,7 +83,7 @@ Todas las respuestas de error son `{ code, message }` con un mensaje para el usu
 |---|---|---|
 | Permiso base de la organización en `write` (no `admin`) | borrar repos o cambiar visibilidad por accidente | ⚠️ requiere owner desde la web |
 | Cada dueño `admin` solo en su repo | ídem | ✅ |
-| **Protección de `main`**: PR obligatorio, 1 aprobación, check `ci` verde, sin force push, sin borrar, admins incluidos | push directo, merges sin revisar, código que no compila | ✅ en `planazo-frontend` y `.github` (públicos) · ⚠️ **no disponible en los 7 repos privados con el plan gratuito**; requiere hacerlos públicos o GitHub Pro |
+| **Protección de `main`**: PR obligatorio, check `ci` verde, sin force push, sin borrar | push directo, código que no compila | ✅ en `planazo-frontend` (desde el 8 oct **sin aprobación obligatoria**: con un solo revisor disponible bloqueaba la integración) y en `.github` (con 1 aprobación) · ⚠️ **no disponible en los 7 repos privados con el plan gratuito** |
 | Solo **squash merge**, borrar rama al merge | historial ilegible, ramas huérfanas | ✅ en los 9 |
 | **CODEOWNERS** en cada repo | que un cambio al servicio de alguien se apruebe sin que se entere | ✅ (solo se hace cumplir donde hay protección de rama) |
 | **Dependabot** alertas y actualizaciones de seguridad | dependencias con CVE conocidas | ✅ en los 9. Agrupa parches y menores en un PR semanal y no propone saltos mayores (esos se hacen a mano y probados). `npm audit --omit=dev` en 0 en gateway, plantilla, booking, game, realtime y frontend tras subir a NestJS 11.2.6 y Next 16.3.7 (PRs del 29 sep) |
@@ -102,6 +103,8 @@ Todas las respuestas de error son `{ code, message }` con un mensaje para el usu
 | El WebSocket del juego acepta cualquier frecuencia de `INTENT` | Un cliente que manda 1000 intenciones por segundo solo se hace daño a sí mismo: el servidor aplica una por tick | Límite por conexión si se ve abuso |
 | Un solo Redis para bus y contadores | Un Redis gestionado aguanta de sobra el tráfico de la demo | Redis separado para el bus |
 | Sin TLS entre gateway y servicios | Viajan por la red privada de Railway | mTLS si algún día salen de la misma red |
+| `game` acepta cualquier origen en CORS y mantiene `POST /api/v1/auth/dev-token` | Son atajos de desarrollo del servicio de Diego; el `dev-token` firma con el mismo secreto, así que equivale al `/api/auth/demo` del gateway | Restringir CORS al dominio de Vercel y poner el `dev-token` detrás de un perfil `dev` |
+| `realtime` persiste cada `GAME.STATE_UPDATE` (20 por segundo por sala) | Funciona para la demo | Difundir sin persistir los eventos del juego, o purgar la tabla |
 
 ---
 

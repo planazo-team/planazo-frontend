@@ -7,7 +7,8 @@ Todo lo que alguien necesita saber para entrar al proyecto sin tener que pregunt
 - **Especificación técnica por servicio:** [`arquitectura.md`](arquitectura.md) y el README de cada repo.
 - **Seguridad:** [`seguridad.md`](seguridad.md) — qué se protege, con qué, y qué se deja abierto a propósito.
 - **Organización y cronograma:** [`plan-organizacion.md`](plan-organizacion.md).
-- **Contrato ejecutable:** `frontend/src/lib/types.ts` y `api/types.ts` en este repo; tabla en `planazo-infra/contracts/`.
+- **Contrato ejecutable:** `frontend/src/lib/types.ts`, `api/types.ts` y `game/types.ts` en este repo; tabla en `planazo-infra/contracts/`.
+- **Producción:** https://planazo-frontend.vercel.app (Vercel) contra el gateway en Railway `https://planazo-api-gateway-production.up.railway.app`.
 
 ---
 
@@ -65,7 +66,7 @@ Organización: [`planazo-team`](https://github.com/planazo-team). Un repo por se
 | [`planazo-api-gateway`](https://github.com/planazo-team/planazo-api-gateway) | Entrada HTTP + módulo `agent` | `8080` |
 | [`planazo-booking`](https://github.com/planazo-team/planazo-booking) | Cupos, reservas, eventos | `3001` |
 | [`planazo-promo`](https://github.com/planazo-team/planazo-promo) | Promociones y cupones | `3002` |
-| [`planazo-game`](https://github.com/planazo-team/planazo-game) | Snake multijugador | `3003` / WS `8082` |
+| [`planazo-game`](https://github.com/planazo-team/planazo-game) | Snake multijugador · Java 21 + Spring Boot | `8082` (REST `/api/v1` y STOMP `/ws` en el mismo puerto) |
 | [`planazo-realtime`](https://github.com/planazo-team/planazo-realtime) | WebSocket y event log | WS `8081` |
 
 Y tres repos de apoyo, sin lógica de negocio:
@@ -73,7 +74,7 @@ Y tres repos de apoyo, sin lógica de negocio:
 | Repo | Qué es |
 |---|---|
 | [`planazo-infra`](https://github.com/planazo-team/planazo-infra) | `docker compose` para levantar todo en local, pruebas k6 de los retos, contratos (`http.md`, `events.schema.json`), colección Bruno |
-| [`planazo-service-template`](https://github.com/planazo-team/planazo-service-template) | Plantilla NestJS con `/health`, guard de `x-gateway-key`, identidad por headers, publicador del bus, Dockerfile y CI. Los servicios nuevos arrancan de aquí |
+| [`planazo-service-template`](https://github.com/planazo-team/planazo-service-template) | Plantilla NestJS con `/health`, guard de `x-gateway-key`, identidad por headers, publicador del bus, Dockerfile y CI. `booking`, `promo` y `realtime` nacen de aquí; `game` es la excepción (Java) |
 | [`.github`](https://github.com/planazo-team/.github) | Plantillas de PR e issues y portada de la organización, aplicadas a todos los repos |
 
 **`agent` no tiene repo propio.** Es un módulo dentro del gateway: no tiene estado, no implementa ningún reto, y es la única pieza recortable del proyecto. Extraerlo después es medio día de trabajo; fusionar dos servicios ya desplegados, no.
@@ -139,6 +140,7 @@ Por eso:
 
 - **Síncrono:** HTTP desde el gateway hacia cada servicio.
 - **Asíncrono:** cada servicio publica sus eventos de dominio al bus; `realtime` los persiste con su `seq` y los difunde solo a quien está suscrito a esa zona o esa sala.
+- **`game` también manda por el bus** el estado de cada tick (`GAME.STATE_UPDATE`) y la lista de salas (`LOBBY.ROOMS_UPDATE`), y `realtime` los reparte. El navegador solo le habla directo por STOMP para los comandos: registrar la sesión y mover.
 
 **Regla inviolable:** ningún servicio escribe en la base de datos de otro, y ningún servicio le dice a otro qué hacer — solo publica lo que le pasó.
 
@@ -174,7 +176,7 @@ El gateway recibe todo bajo `/api` y **quita ese prefijo** al reenviar:
 | `/api/reservations*` | `/reservations*` | booking |
 | `/api/events*` | `/events*` | booking |
 | `/api/promos*` | `/promos*` | promo |
-| `/api/rooms*` | `/rooms*` | game |
+| `/api/salas*` · `/api/leaderboard*` · `/api/historico*` | `/api/v1/salas*` · `/api/v1/leaderboard*` · `/api/v1/historico*` | game, **con el `Authorization: Bearer` reenviado**: valida el JWT por su cuenta |
 | `/api/plan` | — | el módulo `agent`, dentro del gateway |
 | `/api/auth/demo` | — | el propio gateway |
 | `/api/health` | — | el propio gateway (sin token) |
@@ -191,9 +193,11 @@ El gateway recibe todo bajo `/api` y **quita ese prefijo** al reenviar:
 | `POST /api/promos` | `{ placeId, title, discount, stock, durationS }` | `Promo` |
 | `POST /api/promos/:id/claim` | — | `Coupon` · `409 PROMO_AGOTADA` / `PROMO_VENCIDA` |
 | `POST /api/plan` | `{ text }` | `PlanResult { intro, stops: [{ placeId, placeName, category, hour, why }] }` |
-| `POST /api/rooms` · `/join` · `/start` | — | `Room` · `404 SALA_NO_EXISTE` · `409 SALA_EN_JUEGO` / `JUGADORES_INSUFICIENTES` |
+| `POST /api/salas/:id/jugadores` | — | `201 { data: ResumenSala }` · `409 SALA_LLENA` · `404` — game envuelve en `{ data }` y sus errores son `{ codigo, mensaje }` |
+| `DELETE /api/salas/:id/jugadores/:jugadorId` | — | `204` (solo el propio jugador) |
+| `GET /api/leaderboard?limite=10` | — | `{ data: EntradaLeaderboard[] }` |
 
-Las formas de `Reservation`, `Slot`, `Promo`, `Coupon`, `Room`, etc. están en `frontend/src/lib/types.ts`. La tabla completa, en `planazo-infra/contracts/http.md`.
+Las formas de `Reservation`, `Slot`, `Promo`, `Coupon`, etc. están en `frontend/src/lib/types.ts`; las del juego (`ResumenSala`, `EstadoJuego`, `EntradaLeaderboard`) en `frontend/src/lib/game/types.ts`. La tabla completa, en `planazo-infra/contracts/http.md`.
 
 ### 6.2 Identidad
 
@@ -209,7 +213,7 @@ El gateway valida el JWT una sola vez y pasa la identidad en headers. **Ningún 
 
 El gateway **sobrescribe** estos headers con lo que dice el token; lo que mande el cliente con esos nombres se descarta. La llave existe para que nadie pueda saltarse el gateway e inventarse una identidad, aunque conozca la URL de un servicio. Ver [`seguridad.md`](seguridad.md).
 
-**Excepción:** `game` y `realtime` sí verifican el JWT ellos mismos, porque sus WebSockets no pasan por el gateway. Usan el **mismo `JWT_SECRET`**, y reciben el token **en el primer mensaje del socket**, nunca por query string.
+**Excepción:** `game` y `realtime` verifican el JWT ellos mismos, con el **mismo secreto** del gateway. `realtime` porque su WebSocket no pasa por el gateway: el token va en el primer mensaje `AUTH`, nunca por query string. `game` en todo lo suyo: el gateway le reenvía el `Authorization: Bearer` en HTTP, y el navegador lo manda en el header `Authorization` del frame `CONNECT` de STOMP. Lee los claims `sub` (id) y `nombre`; por eso el gateway firma el token con `nombre` además de `name`. En game la variable se llama `JWT_SECRETO` y debe ser idéntica a `JWT_SECRET`. `game` no usa `x-gateway-key`.
 
 ### 6.3 Errores
 
@@ -234,7 +238,9 @@ Cuerpo esperado en los errores: `{ code, message }` con un `message` que el usua
 | `RESERVE.OK` · `RESERVE.CONFLICT` | booking | el usuario y el panel del negocio |
 | `PROMO.PUSH` · `PROMO.EXPIRED` | promo | clientes de esa zona |
 | `PROMO.WON` · `PROMO.REJECTED` | promo | el usuario y el panel del negocio |
-| `ROOM.JOIN` · `SNAKE.SCORE` · `ROUND.END` | game | la sala |
+| `LOBBY.ROOMS_UPDATE` | game | tópico `salas`: quien mira la lista de salas |
+| `GAME.STATE_UPDATE` | game | tópico `salas:<salaId>`: los jugadores de esa sala, en cada tick (20 Hz) |
+| `GAME.PARTIDA_FINALIZADA` | game | tópico `global`: resultado de la partida |
 
 Todos pasan por el bus y llegan al cliente a través de `realtime`. El productor publica al canal Redis `planazo.events` este **sobre**:
 
@@ -242,7 +248,7 @@ Todos pasan por el bus y llegan al cliente a través de `realtime`. El productor
 { "id": "uuid-v4", "type": "PROMO.PUSH", "topics": ["zone:zona-t"], "payload": { "id": "pr-1", "placeId": "p7", "placeName": "Bar El Zaguán", "zone": "zona-t", "title": "2x1 en cócteles", "discount": "2x1", "stock": 10, "initialStock": 10, "expiresAt": 1727280120000 }, "at": 1727280000000 }
 ```
 
-`seq` **no lo pone el productor**: lo asigna `realtime` al persistir y el cliente lo recibe como `RtEvent { seq, id, type, payload, topics, at }`. Tópicos válidos: `zone:<zona>`, `place:<id>`, `user:<id>`, `room:<código>`. **El payload va plano**: `PROMO.PUSH` lleva la `Promo` tal cual, `RESERVE.OK` la `Reservation` tal cual; así los consume el frontend. Payload de cada tipo en `arquitectura.md` y en `planazo-infra/contracts/events.schema.json`.
+`seq` **no lo pone el productor**: lo asigna `realtime` al persistir y el cliente lo recibe como `RtEvent { seq, id, type, payload, topics, at }`. Tópicos válidos: `zone:<zona>`, `place:<id>`, `user:<id>`, `salas`, `salas:<salaId>`, `global` (`room:<código>` era del diseño anterior del juego y ya no se usa). **El payload va plano**: `PROMO.PUSH` lleva la `Promo` tal cual, `RESERVE.OK` la `Reservation` tal cual; así los consume el frontend. Payload de cada tipo en `arquitectura.md` y en `planazo-infra/contracts/events.schema.json`.
 
 ---
 
@@ -285,40 +291,33 @@ Zonas: `zona-g` (centro `4.6553, -74.0566`), `zona-t` (centro `4.6672, -74.0536`
 | Pieza | Estado |
 |---|---|
 | `frontend` | **En producción en Vercel, en modo `live` contra los cinco servicios.** Probado de punta a punta: login, mapa, ficha, reserva con 409, promos, cupones, panel del negocio, eventos en vivo y una partida de cuatro jugadores en el minijuego. |
-| `api-gateway` | **Existe y está probado en local y en Docker.** Auth demo, proxy con `x-gateway-key` y `x-user-name`, CORS con lista blanca, rate limit, `/api/health`, módulo `agent` con el contrato `PlanResult` y fallback a plantilla. NestJS 11 sobre Express 5. CI, Dockerfile y `railway.json` (health check en `/api/health`) listos. |
-| `booking` | **Implementado, en `main` desde el 2 de octubre.** Lugares, franjas, reservas con lock optimista (CC-3), panel del negocio y seed del catálogo. Estado en memoria por ahora. |
-| `promo` | **Reescrito sobre la plantilla NestJS** (PR en revisión): stock en Redis con decremento atómico (CC-1), bus, rutas en camelCase, guard del gateway. Promos y cupones en memoria por ahora. |
+| `api-gateway` | **En Railway** (`planazo-api-gateway-production.up.railway.app`). Auth demo, proxy con `x-gateway-key` y `x-user-name` a booking y promo, proxy con `Bearer` a game (`/api/salas`, `/api/leaderboard`, `/api/historico`), CORS con lista blanca, rate limit, `/api/health`, módulo `agent` con fallback a plantilla (sin `ANTHROPIC_API_KEY` configurada todavía). |
+| `booking` | **En Railway, solo por red privada.** Lugares, franjas, reservas con lock optimista (CC-3), panel del negocio y seed del catálogo. Estado **en memoria**: un redespliegue reinicia las reservas. PostgreSQL pendiente. |
+| `promo` | **Reescrito sobre la plantilla NestJS y en Railway, por red privada** (PR #14, 8 oct). Stock en Redis con decremento atómico en Lua (CC-1), publica al bus, rutas en camelCase, guard del gateway. Promociones y cupones **en memoria**; PostgreSQL pendiente (issue #3, punto 2). |
 | `game` | **Implementado por Diego y desplegado en Railway.** Java + Spring Boot con arquitectura hexagonal: dominio `Sala`/`Serpiente`, runtime de partida, leaderboard en Redis, migración Flyway, Swagger y tests de ArchUnit. Comandos por STOMP; el snapshot de cada tick y la lista de salas salen al bus (`GAME.STATE_UPDATE`, `LOBBY.ROOMS_UPDATE`) y llegan al frontend por realtime. El frontend usa su cliente (`test-client.html`) con el mismo diseño. |
 | `realtime` | **Implementado por Camilo y desplegado en Railway.** Protocolo WebSocket completo (AUTH, SUBSCRIBE, RESUME, REPLAY) con Prisma y PostgreSQL para el event log. Probado en producción: un `PROMO.PUSH` de promo llega al cliente suscrito a `zone:zona-t`. |
-| `planazo-infra` | **Existe.** Compose con Redis y tres Postgres, k6 de los cuatro retos de concurrencia/reconexión, contratos, colección Bruno. |
-| Conexión frontend ↔ gateway | **Probada de punta a punta** en local: login real, token emitido, rutas protegidas respondiendo, CORS bloqueando orígenes ajenos. |
+| `planazo-infra` | **Existe.** Compose local, k6 de CC-1, CC-3 y RT-2 vigentes (el de CC-2 sigue el protocolo viejo del juego y hay que reescribirlo a STOMP), contratos, colección Bruno y `scripts/railway-deploy-core.sh`, que crea gateway, booking y promo en Railway. |
+| Producción | **Probada de punta a punta el 8 de octubre:** login, mapa, ficha, reserva con `409`, promo reclamada, `PROMO.PUSH` llegando por realtime y una partida de cuatro jugadores en `Sala Cartagena`. Pendiente correr los k6 contra Railway. |
 
-### Divergencias de stack (reales, hay que decidirlas)
+### Decisiones de stack ya tomadas
 
-El stack documentado dice NestJS para todos los servicios. Dos repos ya no lo cumplen, y en ambos casos **el código existe y funciona**, así que la decisión no es "quién tenía razón" sino qué se normaliza:
+Las divergencias detectadas el 25 de septiembre se resolvieron así:
 
-| Repo | Lo documentado | Lo que hay | Qué implica |
-|---|---|---|---|
-| `game` | NestJS + Redis pub/sub | **Java 21 + Spring Boot + RabbitMQ** | El despliegue en Railway necesita build de Maven con JDK, no Node. Sus 11 PRs de Dependabot y el de NestJS 11 quedaron obsoletos: hay que cerrarlos. |
-| `promo` | NestJS headless | **React + Vite + Express**, con UI propia | Duplica el trabajo del frontend. Detrás del gateway solo sirve `src/routes/promos.ts`; la UI sobra. |
+| Tema | Decisión (8 de octubre) |
+|---|---|
+| `game` en Java 21 + Spring Boot | **Se queda en Java.** Es el código de Diego y funciona. Railway lo construye con su propio `Dockerfile` (Maven). El frontend integra su cliente (`test-client.html`) tal cual, con el mismo diseño. |
+| `promo` en React + Vite + Express | **Reescrito en NestJS** sobre la plantilla (PR #14): sin UI, stock en Redis, bus, camelCase. |
+| Bus: Redis pub/sub vs RabbitMQ | **Redis pub/sub, canal `planazo.events`, para todos.** Camilo quitó RabbitMQ de `game` y lo pasó a Redis. |
+| `game` detrás del gateway | El gateway reenvía `/api/salas`, `/api/leaderboard` y `/api/historico` a `/api/v1/...` de game **con el `Bearer`**, y firma el token con el claim `nombre` que game lee. Los usuarios son los nueve semilla del gateway; los `j-ana`… de game solo sirven para su `dev-token`. |
+| Estado del juego en vivo | Camilo cambió el broadcaster de `game`: el estado de cada tick y la lista de salas van **al bus** (`GAME.STATE_UPDATE`, `LOBBY.ROOMS_UPDATE`) y `realtime` los reparte. STOMP queda para los comandos. Consecuencia: `realtime` persiste 20 eventos por segundo por sala en partida; el equipo debe decidir si eso se persiste o solo se difunde. |
 
-**El bus es la divergencia que más duele.** El contrato de §6.4 dice canal Redis `planazo.events`; `game` publica por **RabbitMQ**. Mientras no se unifique, `realtime` no va a recibir los eventos del juego. Hay que elegir uno —RabbitMQ da entrega garantizada y es lo que ya está escrito; Redis pub/sub no suma infraestructura porque ya está— y alinear a los demás.
+**Swagger:** solo `game` lo expone (`/swagger-ui.html`). Falta en gateway, booking, promo y realtime.
 
-**`game` todavía no encaja detrás del gateway.** Su README documenta un servicio que hoy funciona solo, con su propia puerta de entrada:
-
-| | El contrato (§6.1 y §6.2) | Lo que expone `game` |
-|---|---|---|
-| Rutas | `/rooms*`, sin prefijo | `/api/v1/...` |
-| Identidad | headers `x-user-id` / `x-user-role` del gateway | endpoint propio `POST /api/v1/auth/dev-token` |
-| Usuarios | `u1`…`u6`, `b1`…`b3` | los suyos (`j-ana`, …) |
-
-Ninguna de las tres es difícil de alinear, pero **hasta que se alineen, el frontend no puede llegar al juego a través del gateway.** Es la primera tarea de integración del servicio, no un detalle.
-
-**Swagger:** solo `game` lo expone hoy, en `/swagger-ui.html`. Falta en gateway, booking, promo y realtime.
+**Pendientes de producto:** PostgreSQL en booking y promo (hoy en memoria), k6 de CC-2 con el protocolo STOMP, k6 de CC-1, CC-3 y RT-2 corridos contra Railway, y en `game` restringir CORS y apagar `POST /api/v1/auth/dev-token`.
 
 ### El modo `mock` es el andamio
 
-El frontend corre hoy sin backend: simula los servicios en el navegador **con los mismos mecanismos** de concurrencia y reconexión. Sirve para dos cosas:
+El frontend puede correr sin backend: simula los servicios en el navegador **con los mismos mecanismos** de concurrencia y reconexión, incluido el protocolo del minijuego. Sirve para dos cosas:
 
 1. Demostrar el flujo completo aunque falten servicios.
 2. Ser la referencia de comportamiento: cuando `booking` esté listo, su `409` debe verse igual que el del mock.
@@ -342,6 +341,7 @@ cp .env.example .env                  # JWT_SECRET y GATEWAY_KEY locales
 
 # 2 · tu servicio, en caliente, en su puerto
 cd ../planazo-booking && cp .env.example .env && npm install && npm run start:dev    # :3001
+#    game es Java: cd ../planazo-game && cp .env.example .env && docker compose up -d && mvn spring-boot:run   # :8082
 
 # 3 · todo lo demás en contenedores (o también en caliente, cada quien el suyo)
 cd ../planazo-infra && ./scripts/up-all.sh
@@ -356,7 +356,7 @@ NEXT_PUBLIC_GAME_URL=ws://localhost:8082
 cd ../planazo-frontend/frontend && npm install && npm run dev    # :3000
 ```
 
-El frontend solo, sin nada más, siempre funciona en modo `mock`. Con gateway y frontend arriba, el login funciona y las rutas de datos responden `502` controlado — que es lo correcto mientras los servicios no existan, y así se ve qué falta.
+El frontend solo, sin nada más, siempre funciona en modo `mock`. Con gateway y frontend arriba, el login funciona y las rutas de un servicio que no esté corriendo responden `502` controlado, así se ve qué falta. Sin `NEXT_PUBLIC_REALTIME_URL` la app funciona solo por HTTP; sin `NEXT_PUBLIC_GAME_URL` no hay partida.
 
 `GATEWAY_KEY` y `JWT_SECRET` deben ser **los mismos** en el `.env` de infra y en el de cada servicio que corras en caliente; si no, el gateway recibirá `401 GATEWAY_KEY_INVALIDA` de tu servicio.
 
@@ -367,21 +367,22 @@ El frontend solo, sin nada más, siempre funciona en modo `mock`. Con gateway y 
 | Pieza | Dónde | Variable que debe publicar |
 |---|---|---|
 | `frontend` | Vercel (Root Directory = `frontend`) | — |
-| `api-gateway` | Railway | su URL → `NEXT_PUBLIC_API_URL` del frontend |
+| `api-gateway` | Railway, dominio público | `https://planazo-api-gateway-production.up.railway.app` → `NEXT_PUBLIC_API_URL` |
 | `booking` | Railway (estado en memoria por ahora) | red privada → `BOOKING_URL` del gateway |
 | `promo` | Railway + Redis (stock) | red privada → `PROMO_URL` del gateway |
-| `game` | Railway + Redis | HTTP → `GAME_URL` del gateway · WS → `NEXT_PUBLIC_GAME_URL` |
-| `realtime` | Railway + PostgreSQL + Redis | WS → `NEXT_PUBLIC_REALTIME_URL` del frontend |
+| `game` | Railway + Postgres (esquema `minijuego`) + Redis (db 1), dominio público | `GAME_URL=http://planazo-game.railway.internal:8082` en el gateway · `NEXT_PUBLIC_GAME_URL=wss://planazo-game-production.up.railway.app` |
+| `realtime` | Railway + Postgres (esquema `public`, Prisma) + Redis, dominio público | `NEXT_PUBLIC_REALTIME_URL=wss://planazo-realtime-production.up.railway.app/ws` |
 
-`planazo-infra/scripts/railway-deploy-core.sh` crea gateway, booking y promo con estas variables en un solo paso.
+`planazo-infra/scripts/railway-deploy-core.sh` crea gateway, booking y promo con estas variables en un solo paso. `realtime` y `game` se despliegan desde GitHub (`railway service source connect`) y reciben a mano `JWT_SECRET` / `GATEWAY_KEY` y `JWT_SECRETO` con los mismos valores.
 
 Reglas del despliegue (diagrama en `diagramas.md` §3):
 
-- **Un solo proyecto de Railway** con los 5 servicios. `JWT_SECRET`, `GATEWAY_KEY` y `BUS_URL` como **variables compartidas** del proyecto: se generan con `openssl rand -hex 32` y no se pasan por chat.
+- **Un solo proyecto de Railway** con los 5 servicios, un Postgres y un Redis. Hoy `JWT_SECRET`, `GATEWAY_KEY` y `BUS_URL` están como **variables de cada servicio** (las pone el script), no como variables compartidas; el valor es el mismo en todos y se generó con `openssl rand -hex 32`. Nunca viajan por chat.
+- **Un solo Postgres** compartido por `realtime` (esquema `public`) y `game` (esquema `minijuego`); `booking` y `promo` no usan base de datos todavía. **Un solo Redis** para el bus, el stock de `promo` y el leaderboard de `game`.
 - `booking` y `promo` **sin dominio público**: el gateway los alcanza por la red privada (`http://booking.railway.internal:3001`). `game` y `realtime` sí tienen dominio público por el WebSocket.
 - `game` y `realtime` corren en **una sola instancia**: tienen estado en memoria (salas, suscripciones) y varias instancias lo repartirían mal.
 - `ALLOWED_ORIGINS` del gateway = la URL de Vercel. `NODE_ENV=production` para que el gateway exija secretos reales.
-- Cada push a `main` despliega. Por eso `main` está protegida: PR, 1 aprobación y CI verde.
+- Cada push a `main` despliega: Vercel y Railway están conectados a GitHub. En `planazo-frontend`, `main` exige PR con el check `ci` en verde; la aprobación obligatoria se quitó el 8 de octubre para no frenar la integración. Los repos privados no admiten protección de rama en el plan gratuito.
 
 ---
 

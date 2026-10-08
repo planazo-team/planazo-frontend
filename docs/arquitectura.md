@@ -13,13 +13,13 @@ Cinco microservicios más un gateway de entrada, cortados por **frontera de cons
 | Regla | Detalle |
 |---|---|
 | **Sin prefijo `/api`** | El gateway recibe `/api/places` y reenvía `/places`. |
-| **Identidad por headers** | `x-user-id`, `x-user-name` (URL-encoded), `x-user-role` (`cliente` \| `negocio`), `x-user-place-id` (solo negocio). Los pone el gateway a partir del JWT. **No validar el JWT** en HTTP. |
+| **Identidad por headers** | `x-user-id`, `x-user-name` (URL-encoded), `x-user-role` (`cliente` \| `negocio`), `x-user-place-id` (solo negocio). Los pone el gateway a partir del JWT. **No validar el JWT** en HTTP. Excepción: `game` recibe el `Authorization: Bearer` reenviado y lo valida él. |
 | **Llave del gateway** | Header `x-gateway-key`. Si el servicio tiene `GATEWAY_KEY` definida, rechaza con `401 GATEWAY_KEY_INVALIDA` toda petición sin la llave correcta, salvo `GET /health`. |
 | **Errores** | Siempre `{ code, message }`. El `message` es para el usuario, en español. El gateway reenvía el status tal cual. |
 | **`GET /health`** | Sin auth. `{ service, status: 'UP', version, uptimeS }`. Lo usan Railway y el compose. |
 | **Eventos** | Se publican al canal Redis `planazo.events` con el **sobre** `{ id, type, topics[], payload, at }`. `id` UUID v4, `at` epoch ms. **Nunca** incluyen `seq`. |
 | **Datos propios** | Cada servicio tiene su Postgres y/o su espacio en Redis. Nadie lee ni escribe la base de otro. |
-| **Plantilla** | Los servicios nuevos arrancan desde `planazo-service-template`, que trae health, guard de la llave, decorador de identidad, publicador del bus, Dockerfile y CI. |
+| **Plantilla** | `booking`, `promo` y `realtime` arrancan desde `planazo-service-template`, que trae health, guard de la llave, decorador de identidad, publicador del bus, Dockerfile y CI. `game` es Java + Spring Boot con arquitectura hexagonal (ver su `ARQUITECTURA.md`). |
 
 Códigos de error que el frontend entiende: `VERSION_CONFLICT` · `SIN_CUPO` · `CAPACIDAD_MENOR` · `PROMO_AGOTADA` · `PROMO_VENCIDA` · `SALA_NO_EXISTE` · `SALA_EN_JUEGO` · `JUGADORES_INSUFICIENTES`. Los demás (`SIN_TOKEN`, `TOKEN_INVALIDO`, `ROL_NO_AUTORIZADO`, `GATEWAY_KEY_INVALIDA`, `SERVICIO_NO_DISPONIBLE`, `RATE_LIMIT`) los muestra como error genérico.
 
@@ -35,8 +35,9 @@ Códigos de error que el frontend entiende: `VERSION_CONFLICT` · `SIN_CUPO` · 
 /api/health          → el propio gateway (sin token)
 /api/auth/demo       → el propio gateway: firma el JWT de un usuario semilla
 /api/places/*        → booking        /api/promos/*   → promo
-/api/reservations/*  → booking        /api/rooms/*    → game
-/api/events          → booking        /api/plan       → módulo agent
+/api/reservations/*  → booking        /api/salas/* /api/leaderboard /api/historico/*
+/api/events          → booking            → game, como /api/v1/..., con Authorization: Bearer
+/api/plan            → módulo agent
 ```
 
 **Variables:** `JWT_SECRET`, `GATEWAY_KEY`, `ALLOWED_ORIGINS`, `BOOKING_URL`, `PROMO_URL`, `GAME_URL`, `ANTHROPIC_API_KEY` (opcional). Con `NODE_ENV=production` se niega a arrancar sin `JWT_SECRET` y `GATEWAY_KEY` de al menos 16 caracteres.
@@ -59,6 +60,8 @@ events         (id, establishment_id, title, starts_at, capacity, taken)
 ```
 
 La columna **`version`** de `time_slots` es el corazón de CC-3. Es un entero que el cliente recibe y devuelve; no se reemplaza por `updated_at`.
+
+> **Estado al 8 de octubre:** `booking` guarda este modelo **en memoria** (`src/booking/booking.service.ts`): la comprobación de versión y la escritura ocurren en el mismo paso síncrono, sin `await` entre ellas, que dentro de un proceso de Node equivale al `UPDATE` de abajo. Un redespliegue reinicia las reservas. Pasar a PostgreSQL no cambia la regla.
 
 ### API
 
@@ -118,10 +121,13 @@ No abre WebSockets, no conoce las promociones, no sabe que existe el juego.
 ### Datos
 
 ```
-Redis        promo:{id}:stock      entero, con TTL igual a la duración
-PostgreSQL   promos  (id, place_id, place_name, zone, title, discount, initial_stock, expires_at)
+Redis        promo:{id}:stock      entero, con TTL igual a la duración (lo único que se descuenta)
+Memoria      promos y cupones emitidos (estado al 8 de octubre; PostgreSQL pendiente)
+PostgreSQL   promos  (id, place_id, place_name, zone, title, discount, initial_stock, expires_at)   ← objetivo
              coupons (id, promo_id, user_id, code, claimed_at, redeemed_at)
 ```
+
+Sin `REDIS_URL` el servicio usa un contador en memoria con la misma regla, solo para desarrollo. Al arrancar lanza tres promociones de ejemplo (`SEED_PROMOS=false` lo desactiva).
 
 `place_name` y `zone` son **copia de lectura** del catálogo semilla: `promo` no llama a `booking` para completarlos.
 
@@ -171,77 +177,66 @@ No decide quién ve la promoción, no tiene interfaz de usuario, no lleva event 
 
 ## 3 · `game` — Snake multijugador
 
-**Responsabilidad.** Salas, simulación de la partida y marcador. El servicio con el perfil de ejecución más distinto de todos.
+**Responsabilidad.** Salas, simulación de la partida y marcador. El servicio con el perfil de ejecución más distinto de todos, y el único que no es NestJS: **Java 21 + Spring Boot 3**, arquitectura hexagonal (`domain` / `application` / `infrastructure`), verificada con ArchUnit. Su diseño completo está en `planazo-game/ARQUITECTURA.md`.
 
-**Retos:** RT-3 (leaderboard en vivo) · CC-2 (leaderboard concurrente)
+**Retos:** RT-3 (partida autoritativa a 20 Hz) · CC-2 (marcador concurrente)
 
 ### Datos
 
 ```
-Memoria   rooms[code] = { hostId, status, players[], snakes, food, tick, endsAt }
-Redis     leaderboard:{code}   sorted set de la sala
-          hall-of-fame         sorted set global de puntajes finales
+Memoria     un SalaRuntime por sala: el agregado Sala (serpientes, comida, tick), dueño exclusivo
+PostgreSQL  esquema `minijuego` (Flyway): salas (catálogo fijo), resultados_partida, puntajes_jugador
+Redis       db 1 · leaderboard global como sorted set (CC-2)
 ```
 
-**Nada en PostgreSQL.** El estado es efímero: si el proceso se reinicia, se pierden las partidas en curso y el negocio no se entera.
+Las salas son **pre-existentes y de cupo fijo** (`sala-001` Bogotá ×6, `sala-002` Medellín ×6, `sala-003` Cali ×6, `sala-004` Cartagena ×4). No se crean salas: se entra a una. Cuando se llena, cuenta regresiva de 3 s y arranca sola; al terminar vuelve a esperar con los mismos jugadores (revancha).
 
-### API HTTP (por el gateway)
+### API HTTP (por el gateway, con `Authorization: Bearer`)
 
-| Método | Ruta | Request | Response |
-|---|---|---|---|
-| `POST` | `/rooms` | — | `201 Room` con código de 4 letras; el `x-user-id` es el anfitrión |
-| `POST` | `/rooms/:code/join` | — | `200 Room` · `404 SALA_NO_EXISTE` · `409 SALA_EN_JUEGO` |
-| `POST` | `/rooms/:code/start` | — | `200 Room` · `409 JUGADORES_INSUFICIENTES` (mínimo 2) |
-| `GET` | `/rooms/hall-of-fame` | — | `HallEntry[]` = `{ name, score, code, at }[]` ordenado desc |
+| Frontend pide | game recibe | Response |
+|---|---|---|
+| `GET /api/salas` | `GET /api/v1/salas` | `{ data: ResumenSala[] }` |
+| `GET /api/salas/:id` | `GET /api/v1/salas/:id` | `{ data: ResumenSala }` |
+| `POST /api/salas/:id/jugadores` | `POST /api/v1/salas/:id/jugadores` | `201 { data: ResumenSala }` · `409 SALA_LLENA` |
+| `DELETE /api/salas/:id/jugadores/:jugadorId` | ídem | `204`; `403` si no es el propio jugador |
+| `GET /api/leaderboard?limite=10` | `GET /api/v1/leaderboard` | `{ data: EntradaLeaderboard[] }` |
+| `GET /api/historico/mio` | `GET /api/v1/historico/mio` | `{ data: ResultadoPartida[] }` |
 
-El nombre del jugador sale de `x-user-name`. `Room`: `{ code, hostId, status: 'lobby'|'playing'|'finished', players: GamePlayer[] }`.
+`ResumenSala = { id, codigo, capacidad, cantidadJugadores, estado, nombresJugadores[] }` con `estado` en `ESPERANDO_JUGADORES | CUENTA_REGRESIVA | EN_CURSO | FINALIZADA`. Los errores son `{ codigo, mensaje }`. El jugador y su nombre salen del JWT (`sub`, `nombre`), no de `x-user-*`. Tipos completos en `frontend/src/lib/game/types.ts`.
 
-### WebSocket (directo, `NEXT_PUBLIC_GAME_URL`)
+### Comandos (STOMP directo, `NEXT_PUBLIC_GAME_URL`)
+
+Endpoint `/ws` publicado con SockJS; el transporte WebSocket nativo está en `/ws/websocket`. El JWT va en el header `Authorization: Bearer` del frame `CONNECT`; sin él el `CONNECT` se rechaza.
 
 ```
-ws://<game>/rooms/:code/play
-→ { type: "AUTH", token }                       primer mensaje; el servidor verifica el JWT
-→ { type: "INTENT", dir: "up"|"down"|"left"|"right" }
-← { type: "STATE", state: GameState }           ~20 veces por segundo
-← { type: "ERROR", message }
+SUBSCRIBE /user/queue/errores                  errores propios { codigo, mensaje }
+SEND      /app/salas/{id}/registrar-sesion     tras unirse: asocia el socket al jugador y, si estaba congelado, lo reconecta (SNK-07)
+SEND      /app/salas/{id}/mover                { direccion: "ARRIBA" | "ABAJO" | "IZQUIERDA" | "DERECHA" }
 ```
 
-Sin `AUTH` válido en 5 s, el servidor cierra el socket.
+### Estado (por el bus, llega vía `realtime`)
 
-### Mecanismo de RT-3 — servidor autoritativo
+Desde el cambio de Camilo, `game` no difunde por `/topic/salas/{id}` sino que publica al bus y `realtime` reparte:
 
-```js
-setInterval(() => {
-  for (const room of activeRooms) {
-    room.applyIntents();   // solo direcciones, nunca posiciones
-    room.step();           // mover, comer, detectar colisiones
-    broadcast(room.code, { type: 'STATE', state: room.serialize() });
-  }
-}, 50);                    // 20 Hz
-```
+| Evento | Tópico | Payload |
+|---|---|---|
+| `LOBBY.ROOMS_UPDATE` | `salas` | `ResumenSala[]` |
+| `GAME.STATE_UPDATE` | `salas:<salaId>` | `EstadoJuegoDTO = { salaId, salaCodigo, estado, capacidad, segundosCuentaRegresiva, anchoTablero, altoTablero, jugadores[], comida, tiempoRestanteSegundos, resultado }` |
+| `GAME.PARTIDA_FINALIZADA` | `global` | `ResultadoPartida` |
+
+El frontend se suscribe por `realtime` a `salas` y a `salas:<id>` y usa STOMP solo para los comandos. Un cliente que pierde el socket queda `DESCONECTADA_CONGELADA` 15 s y puede volver.
+
+### Mecanismo de RT-3 — un actor por sala
+
+Cada sala tiene exactamente un `SalaRuntime`, dueño de su agregado. Los movimientos entran a una `ConcurrentLinkedQueue` que solo drena el hilo del tick (20 por segundo, `ScheduledExecutorService`, solo mientras hay partida); unirse, salir y reconectar toman un único `ReentrantLock`, nunca anidado. Las respuestas hacia afuera son snapshots inmutables (`ResumenSala`, `EstadoJuegoDTO`), nunca el agregado vivo.
 
 ### Mecanismo de CC-2
 
-```
-ZADD      leaderboard:{code} GT {score} {playerId}
-ZREVRANGE leaderboard:{code} 0 9 WITHSCORES
-```
+Al terminar la partida, cada puntaje se suma al sorted set global de Redis (`ZINCRBY`) y el resultado completo se persiste en PostgreSQL en la misma operación de cierre. El leaderboard se lee del sorted set ya ordenado; nunca se lee y reescribe la tabla completa, así que no hay *lost update* aunque varias salas terminen a la vez.
 
-Nunca se lee y reescribe la tabla completa, así que no existe el *lost update*. **Desempate determinista:**
+### Pendientes para producción
 
-```
-score = puntos × 1.000.000 + (1.000.000 − segundosDesdeInicio)
-```
-
-A igual puntaje gana quien llegó primero según el reloj del servidor, y todos ven el mismo orden porque `GameState.leaderboard` ya viene ordenado.
-
-### Eventos
-
-| Evento | Tópicos | Payload |
-|---|---|---|
-| `ROOM.JOIN` | `room:<code>` | `{ code, playerId, name }` |
-| `SNAKE.SCORE` | `room:<code>` | `{ code, playerId, name, score }` |
-| `ROUND.END` | `room:<code>` | `{ code, leaderboard, winnerId }` |
+CORS permite cualquier origen; `POST /api/v1/auth/dev-token` sigue activo; `k6/cc2-game-score.js` todavía describe el protocolo anterior y hay que reescribirlo a STOMP.
 
 ---
 
@@ -271,7 +266,8 @@ En memoria: `conexión → { userId, topics[], lastSeq }`.
 → { type: "SUBSCRIBE",   topic: "zone:zona-g" }    al mover el mapa
 → { type: "SUBSCRIBE",   topic: "place:p7" }       al abrir una ficha o el panel
 → { type: "SUBSCRIBE",   topic: "user:u1" }        solo el propio usuario
-→ { type: "SUBSCRIBE",   topic: "room:A7X9" }      al entrar a una sala
+→ { type: "SUBSCRIBE",   topic: "salas" }          al mirar la lista de salas del juego
+→ { type: "SUBSCRIBE",   topic: "salas:sala-004" } al entrar a una sala
 → { type: "UNSUBSCRIBE", topic }
 → { type: "RESUME", last_seq: 4821, topics: [...] } al reconectar
 ← { type: "EVENT",  event: RtEvent }
@@ -283,6 +279,8 @@ En memoria: `conexión → { userId, topics[], lastSeq }`.
 ### Cómo recibe lo que difunde
 
 Suscrito al canal `planazo.events`. Por cada sobre: `INSERT ... ON CONFLICT (id) DO NOTHING RETURNING seq`; si insertó, lo emite como `EVENT` a las conexiones cuyos tópicos intersecten `topics`.
+
+> Hoy eso incluye los `GAME.STATE_UPDATE` de `game`, 20 por segundo por sala en partida. Es una decisión abierta: persistirlos da reanudación también al juego, pero llena la tabla rápido. La alternativa es difundirlos sin `INSERT`.
 
 ### Mecanismo de RT-2 — reenvío selectivo
 
@@ -333,7 +331,9 @@ Sin `ANTHROPIC_API_KEY`, o si el modelo falla, responde una **plantilla** con el
 | `RESERVE.OK` · `RESERVE.CONFLICT` | booking | `user:`, `place:` | el usuario y el panel |
 | `PROMO.PUSH` · `PROMO.EXPIRED` | promo | `zone:` | clientes de esa zona |
 | `PROMO.WON` · `PROMO.REJECTED` | promo | `user:`, `place:` | el usuario y el panel |
-| `ROOM.JOIN` · `SNAKE.SCORE` · `ROUND.END` | game | `room:` | la sala |
+| `LOBBY.ROOMS_UPDATE` | game | `salas` | quien mira la lista de salas |
+| `GAME.STATE_UPDATE` | game | `salas:<id>` | los jugadores de la sala, cada tick |
+| `GAME.PARTIDA_FINALIZADA` | game | `global` | resultado de la partida |
 
 Esquema formal de cada payload: `planazo-infra/contracts/events.schema.json`. **Los payloads van planos**, tal como los consume el frontend con `useRtEvent<Promo>` o `useRtEvent<Reservation>`; no se envuelven en `{ promo }` ni `{ reservation }`.
 
