@@ -30,6 +30,7 @@ Vive en [`docs/`](docs/) de este repo y aplica a toda la organización:
 
 | Documento | Para qué |
 |---|---|
+| [`estado.md`](docs/estado.md) | **Foto del sistema con fecha:** producción, verificaciones, pendientes por prioridad. |
 | [`contexto.md`](docs/contexto.md) | **Empieza aquí.** Producto, equipo, retos, contratos, seed, estado, cómo correr y desplegar. Si contradice a otro, este manda. |
 | [`dominios.md`](docs/dominios.md) | Los siete dominios: qué posee cada servicio, sus invariantes, qué publica y qué no hace. |
 | [`diagramas.md`](docs/diagramas.md) | Contexto, componentes, despliegue, secuencias de los seis retos, modelo de datos, repos. |
