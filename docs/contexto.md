@@ -284,10 +284,10 @@ Zonas: `zona-g` (centro `4.6553, -74.0566`), `zona-t` (centro `4.6672, -74.0536`
 
 | Pieza | Estado |
 |---|---|
-| `frontend` | **Existe y funciona.** Modo `mock` completo: simula los 5 servicios en el navegador, con concurrencia y reconexión simuladas. En `live`, la ficha del lugar completa `promos` con `GET /api/promos?zone=` filtrando por `placeId`, porque `booking` responde `promos: []`. Next 16.3.7. CI y Dockerfile listos. Desplegado en Vercel. |
+| `frontend` | **Existe y funciona.** Modo `mock` completo, y modo `live` probado de punta a punta contra gateway, booking y promo (login, mapa, ficha, reserva con 409, promos, cupones, panel del negocio). Realtime y game son opcionales en `live`. Next 16.3.7, tipografía y tema nuevos. Desplegado en Vercel. |
 | `api-gateway` | **Existe y está probado en local y en Docker.** Auth demo, proxy con `x-gateway-key` y `x-user-name`, CORS con lista blanca, rate limit, `/api/health`, módulo `agent` con el contrato `PlanResult` y fallback a plantilla. NestJS 11 sobre Express 5. CI, Dockerfile y `railway.json` (health check en `/api/health`) listos. |
 | `booking` | **Implementado, en `main` desde el 2 de octubre.** Lugares, franjas, reservas con lock optimista (CC-3), panel del negocio y seed del catálogo. Estado en memoria por ahora. |
-| `promo` | **Tiene código de Fabián** (React + Vite + Express) que hay que alinear al contrato: sacar la UI, stock en Redis, publicar al bus, nombres en camelCase. La lista está en el issue del repo. CI agregado. |
+| `promo` | **Reescrito sobre la plantilla NestJS** (PR en revisión): stock en Redis con decremento atómico (CC-1), bus, rutas en camelCase, guard del gateway. Promos y cupones en memoria por ahora. |
 | `game` | **Implementado por Diego, en `main` desde el 2 de octubre.** Java + Spring Boot con arquitectura hexagonal: dominio `Sala`/`Serpiente`, runtime de partida, leaderboard en Redis, eventos por Redis pub/sub, WebSocket STOMP, migración Flyway, Swagger y tests de ArchUnit. |
 | `realtime` | **Implementado por Camilo, en `main` desde el 2 de octubre.** Protocolo WebSocket completo (AUTH, SUBSCRIBE, RESUME, REPLAY) con Prisma y PostgreSQL para el event log. |
 | `planazo-infra` | **Existe.** Compose con Redis y tres Postgres, k6 de los cuatro retos de concurrencia/reconexión, contratos, colección Bruno. |
@@ -368,10 +368,12 @@ El frontend solo, sin nada más, siempre funciona en modo `mock`. Con gateway y 
 |---|---|---|
 | `frontend` | Vercel (Root Directory = `frontend`) | — |
 | `api-gateway` | Railway | su URL → `NEXT_PUBLIC_API_URL` del frontend |
-| `booking` | Railway + PostgreSQL | su URL → `BOOKING_URL` del gateway |
-| `promo` | Railway + PostgreSQL + Redis | su URL → `PROMO_URL` del gateway |
+| `booking` | Railway (estado en memoria por ahora) | red privada → `BOOKING_URL` del gateway |
+| `promo` | Railway + Redis (stock) | red privada → `PROMO_URL` del gateway |
 | `game` | Railway + Redis | HTTP → `GAME_URL` del gateway · WS → `NEXT_PUBLIC_GAME_URL` |
 | `realtime` | Railway + PostgreSQL + Redis | WS → `NEXT_PUBLIC_REALTIME_URL` del frontend |
+
+`planazo-infra/scripts/railway-deploy-core.sh` crea gateway, booking y promo con estas variables en un solo paso.
 
 Reglas del despliegue (diagrama en `diagramas.md` §3):
 

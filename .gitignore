@@ -34,3 +34,4 @@ npm-debug.log*
 
 # despliegue local de Netlify
 .netlify/
+.vercel

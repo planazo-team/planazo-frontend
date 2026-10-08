@@ -13,6 +13,8 @@ const LABEL = { connecting: 'Conectando…', online: 'En vivo', offline: 'Recone
  */
 export function ConnectionBadge() {
   const s = useConnStatus();
+  // En live sin NEXT_PUBLIC_REALTIME_URL no hay canal: no se muestra un estado que nunca cambia.
+  const sinCanal = config.mode === 'live' && !config.realtimeUrl;
   const [note, setNote] = useState<string | null>(null);
   const prev = useRef(s);
 
@@ -32,6 +34,8 @@ export function ConnectionBadge() {
       return () => clearTimeout(t);
     }
   }, [s]);
+
+  if (sinCanal) return null;
 
   return (
     <div className="row" style={{ gap: 8 }}>

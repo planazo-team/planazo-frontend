@@ -4,6 +4,7 @@ import dynamic from 'next/dynamic';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect, useMemo, useState } from 'react';
+import { CategoryIcon } from '@/components/Icon';
 import { api } from '@/lib/api';
 import { useRtEvent } from '@/lib/hooks';
 import { CATEGORY_COLOR, CATEGORY_LABEL, ZONES } from '@/lib/seed';
@@ -11,7 +12,7 @@ import type { Category, Place, PlaceUpdatePayload, Promo } from '@/lib/types';
 
 const MapView = dynamic(() => import('@/components/MapView'), {
   ssr: false,
-  loading: () => <div className="map" />,
+  loading: () => <div className="map skeleton" />,
 });
 
 const FILTERS: Array<{ id: Category | 'todos'; label: string }> = [
@@ -61,16 +62,27 @@ export default function MapaPage() {
     [places, filter],
   );
   const promoBy = useMemo(() => new Set(promos.filter((p) => p.expiresAt > Date.now()).map((p) => p.placeId)), [promos]);
+  const freeTotal = useMemo(() => places.reduce((a, p) => a + (p.freeSeats ?? 0), 0), [places]);
 
   return (
     <main className="content">
-      <div className="row between" style={{ marginBottom: 12 }}>
+      <div className="row between" style={{ marginBottom: 14, alignItems: 'flex-end' }}>
         <div>
-          <h1>¿Qué hay cerca?</h1>
-          <p className="muted small" style={{ margin: 0 }}>
-            {ZONES['zona-g'].label} y {ZONES['zona-t'].label} · Chapinero
-          </p>
+          <span className="eyebrow">
+            {ZONES['zona-g'].label} · {ZONES['zona-t'].label} · Chapinero
+          </span>
+          <h1 style={{ marginTop: 4 }}>
+            ¿Qué hay <em className="serif">cerca?</em>
+          </h1>
         </div>
+        {loaded && (
+          <div style={{ textAlign: 'right' }}>
+            <div className="stat" style={{ color: 'var(--brand)', fontSize: 24 }}>
+              {freeTotal}
+            </div>
+            <div className="muted small">cupos libres</div>
+          </div>
+        )}
       </div>
 
       <div className="chips" role="group" aria-label="Filtrar por categoría" style={{ marginBottom: 12 }}>
@@ -91,13 +103,17 @@ export default function MapaPage() {
       />
 
       <section className="section">
-        <h2>{visible.length} lugares</h2>
-        {!loaded && <p className="muted">Cargando…</p>}
+        <div className="row between" style={{ marginBottom: 10 }}>
+          <h2>{loaded ? `${visible.length} lugares` : 'Lugares'}</h2>
+          {promoBy.size > 0 && <span className="badge promo">{promoBy.size} con promo</span>}
+        </div>
         <div className="stack">
+          {!loaded &&
+            [0, 1, 2, 3].map((i) => <div key={i} className="skeleton" style={{ height: 72 }} />)}
           {visible.map((p) => (
             <Link key={p.id} href={`/cliente/lugar/${p.id}`} className="card link flat">
               <div className="row">
-                <span className="swatch" style={{ background: CATEGORY_COLOR[p.category] }} />
+                <CategoryIcon category={p.category} color={CATEGORY_COLOR[p.category]} />
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <h3>{p.name}</h3>
                   <div className="muted small">

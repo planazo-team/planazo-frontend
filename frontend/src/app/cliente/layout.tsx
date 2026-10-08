@@ -3,7 +3,9 @@
 import { useRouter } from 'next/navigation';
 import { AuthGate } from '@/components/AuthGate';
 import { BottomNav } from '@/components/BottomNav';
+import { Brand } from '@/components/Brand';
 import { ConnectionBadge } from '@/components/ConnectionBadge';
+import { Icon } from '@/components/Icon';
 import { PromoToast } from '@/components/PromoToast';
 import { useTopics } from '@/lib/hooks';
 import { setSession, type SessionUser } from '@/lib/session';
@@ -16,20 +18,22 @@ function ClientShell({ user, children }: { user: SessionUser; children: React.Re
   return (
     <div className="shell">
       <header className="topbar">
-        <div className="brand">
-          Plan<span>azo</span>
-        </div>
+        <Brand />
         <div className="spacer" />
         <ConnectionBadge />
+        <span className="avatar" style={{ width: 30, height: 30, fontSize: 12 }} title={user.name} aria-hidden>
+          {user.name[0]}
+        </span>
         <button
           className="btn ghost sm"
           onClick={() => {
             setSession(null);
             router.replace('/');
           }}
-          title={`Sesión de ${user.name}`}
+          title={`Cerrar la sesión de ${user.name}`}
+          aria-label="Salir"
         >
-          Salir
+          <Icon name="logout" size={16} />
         </button>
       </header>
       {children}

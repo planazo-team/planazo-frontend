@@ -16,7 +16,11 @@ export function realtime(): RealtimeClient {
 
   let client: RealtimeClient;
   if (config.mode === 'live') {
-    client = new RealtimeClient(wsTransport(config.realtimeUrl, () => getSession()?.token));
+    // Sin NEXT_PUBLIC_REALTIME_URL no hay canal en vivo: la app sigue funcionando por HTTP.
+    const transport = config.realtimeUrl
+      ? wsTransport(config.realtimeUrl, () => getSession()?.token)
+      : { connect() {}, send() {}, close() {} };
+    client = new RealtimeClient(transport);
   } else {
     backend(); // arranca la actividad simulada de la ciudad
     client = new RealtimeClient(gateway().transport());

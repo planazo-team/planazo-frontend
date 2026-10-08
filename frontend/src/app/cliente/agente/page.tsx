@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { useState } from 'react';
+import { CategoryIcon, Icon } from '@/components/Icon';
 import { api } from '@/lib/api';
 import { config } from '@/lib/config';
 import { CATEGORY_COLOR, CATEGORY_LABEL } from '@/lib/seed';
@@ -35,9 +36,13 @@ export default function AgentePage() {
 
   return (
     <main className="content">
-      <h1>Arma tu plan</h1>
-      <p className="muted" style={{ marginTop: 6 }}>
-        Cuéntame qué quieres hacer hoy —con quién, cuánto quieres gastar, qué ánimo traes— y te sugiero a dónde ir.
+      <span className="eyebrow">Agente</span>
+      <h1 style={{ marginTop: 4 }}>
+        Arma tu <em className="serif">plan</em>
+      </h1>
+      <p className="muted" style={{ marginTop: 8 }}>
+        Cuéntame qué quieres hacer hoy, con quién, cuánto quieres gastar y qué ánimo traes. Te sugiero a dónde ir y en
+        qué orden.
       </p>
 
       <div className="chips section">
@@ -49,7 +54,7 @@ export default function AgentePage() {
       </div>
 
       <form
-        className="stack section"
+        className="card stack section"
         onSubmit={(e) => {
           e.preventDefault();
           ask(text);
@@ -60,9 +65,18 @@ export default function AgentePage() {
           <textarea value={text} onChange={(e) => setText(e.target.value)} placeholder="Ej.: algo tranquilo para dos, sin gastar mucho" />
         </label>
         <button className="btn block" disabled={busy || !text.trim()}>
+          <Icon name="sparkles" size={18} />
           {busy ? 'Pensando…' : 'Sugerir lugares'}
         </button>
       </form>
+
+      {busy && (
+        <div className="stack section">
+          <div className="skeleton" style={{ height: 20, width: '70%' }} />
+          <div className="skeleton" style={{ height: 96 }} />
+          <div className="skeleton" style={{ height: 96 }} />
+        </div>
+      )}
 
       {error && (
         <p className="alert error section" role="alert">
@@ -72,24 +86,24 @@ export default function AgentePage() {
 
       {plan && (
         <section className="section fade-in">
-          <p>{plan.intro}</p>
+          <p style={{ marginTop: 0 }}>{plan.intro}</p>
           {plan.stops.length === 0 ? (
             <p className="alert info">No encontré lugares con cupo para ese plan ahora mismo.</p>
           ) : (
-            <div className="stack">
+            <div className="steps">
               {plan.stops.map((s, i) => (
                 <Link key={s.placeId} href={`/cliente/lugar/${s.placeId}`} className="card link flat">
                   <div className="row" style={{ alignItems: 'flex-start' }}>
-                    <b className="stat" style={{ fontSize: 20, width: 28 }}>
-                      {i + 1}
-                    </b>
-                    <div style={{ flex: 1 }}>
+                    <span className="step-n">{i + 1}</span>
+                    <CategoryIcon category={s.category} color={CATEGORY_COLOR[s.category]} size={36} />
+                    <div style={{ flex: 1, minWidth: 0 }}>
                       <div className="row between">
                         <h3>{s.placeName}</h3>
-                        <span className="badge ok">{s.hour}</span>
+                        <span className="badge ok">
+                          <Icon name="clock" size={13} /> {s.hour}
+                        </span>
                       </div>
-                      <div className="row small muted" style={{ gap: 6, marginTop: 2 }}>
-                        <span className="swatch" style={{ background: CATEGORY_COLOR[s.category] }} />
+                      <div className="small muted" style={{ marginTop: 2 }}>
                         {CATEGORY_LABEL[s.category]}
                       </div>
                       <p className="small muted" style={{ margin: '6px 0 0' }}>

@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { useCallback, useEffect, useState } from 'react';
+import { Icon } from '@/components/Icon';
 import { PromoCard } from '@/components/PromoCard';
 import { api } from '@/lib/api';
 import { config } from '@/lib/config';
@@ -50,7 +51,10 @@ export default function LugarPage() {
   if (place === undefined) {
     return (
       <main className="content">
-        <p className="muted">Cargando…</p>
+        <div className="skeleton" style={{ height: 16, width: 80 }} />
+        <div className="skeleton" style={{ height: 150, marginTop: 12 }} />
+        <div className="skeleton" style={{ height: 56, marginTop: 24 }} />
+        <div className="skeleton" style={{ height: 56, marginTop: 10 }} />
       </main>
     );
   }
@@ -67,6 +71,7 @@ export default function LugarPage() {
 
   const slot = place.slots.find((s) => s.id === slotId) ?? null;
   const free = slot ? slot.capacity - slot.taken : 0;
+  const color = CATEGORY_COLOR[place.category];
 
   /**
    * CC-3: se envía la versión de la franja que el usuario está viendo. Si alguien
@@ -88,20 +93,36 @@ export default function LugarPage() {
 
   return (
     <main className="content">
-      <Link href="/cliente/mapa" className="muted small">
-        ← Mapa
+      <Link href="/cliente/mapa" className="row muted small" style={{ gap: 6, width: 'fit-content' }}>
+        <Icon name="arrowLeft" size={16} /> Mapa
       </Link>
 
-      <div className="row" style={{ marginTop: 10 }}>
-        <span className="swatch" style={{ background: CATEGORY_COLOR[place.category], width: 14, height: 14 }} />
-        <span className="muted small">
-          {CATEGORY_LABEL[place.category]} · {ZONES[place.zone].label} · {PRICE[place.priceLevel]}
-        </span>
-      </div>
-      <h1 style={{ marginTop: 6 }}>{place.name}</h1>
-      <p className="muted" style={{ marginTop: 6 }}>
-        {place.description}
-      </p>
+      <header
+        className="place-hero"
+        style={{ background: `linear-gradient(135deg, ${color}55, ${color}14 60%, rgba(255,255,255,0.02))` }}
+      >
+        <Icon name={place.category} size={120} className="wm" />
+        <div className="row" style={{ gap: 8 }}>
+          <span className="badge" style={{ background: color, color: '#fff' }}>
+            {CATEGORY_LABEL[place.category]}
+          </span>
+          <span className="muted small">
+            {ZONES[place.zone].label} · {PRICE[place.priceLevel]}
+          </span>
+        </div>
+        <h1>{place.name}</h1>
+        <p className="muted" style={{ margin: '8px 0 0', maxWidth: 480 }}>
+          {place.description}
+        </p>
+        {place.freeSeats !== null && (
+          <div className="row" style={{ marginTop: 14, gap: 6 }}>
+            <Icon name="users" size={16} className="muted" />
+            <span className="small">
+              <b>{place.freeSeats}</b> cupos libres ahora
+            </span>
+          </div>
+        )}
+      </header>
 
       {place.promos.length > 0 && (
         <section className="section stack">
@@ -137,12 +158,18 @@ export default function LugarPage() {
               : 'Este lugar no requiere reserva: puedes llegar directamente.'}
           </p>
         ) : result?.ok ? (
-          <div className="card fade-in">
-            <p className="alert ok" role="status">
-              Reserva confirmada para {result.reservation.people} persona{result.reservation.people === 1 ? '' : 's'} a
-              las {result.reservation.startsAt}.
-            </p>
-            <p className="muted small" style={{ margin: '12px 0 4px' }}>
+          <div className="card ticket fade-in">
+            <div className="row" style={{ gap: 8 }}>
+              <span className="badge ok">
+                <Icon name="check" size={14} /> Confirmada
+              </span>
+              <span className="muted small">
+                {result.reservation.people} persona{result.reservation.people === 1 ? '' : 's'} · {result.reservation.startsAt}
+              </span>
+            </div>
+            <h3 style={{ marginTop: 10 }}>{place.name}</h3>
+            <div className="tear" />
+            <p className="eyebrow" style={{ margin: '0 0 4px' }}>
               Tu código
             </p>
             <div className="coupon-code">{result.reservation.code}</div>
@@ -172,7 +199,7 @@ export default function LugarPage() {
                     <i style={{ width: `${(s.taken / s.capacity) * 100}%` }} />
                   </span>
                   <span className="small" style={{ width: 72, textAlign: 'right', fontWeight: 700 }}>
-                    {left === 0 ? 'Lleno' : `${left} libres`}
+                    {left === 0 ? 'Lleno' : `${left} libre${left === 1 ? '' : 's'}`}
                   </span>
                   {config.demo && <span className="mono muted">v{s.version}</span>}
                 </button>

@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
+import { Icon } from '@/components/Icon';
 import { api } from '@/lib/api';
 import { config } from '@/lib/config';
 import { useNow, useRtEvent } from '@/lib/hooks';
@@ -40,7 +41,16 @@ export default function PanelPage() {
   if (!place) {
     return (
       <main className="content wide">
-        <p className="muted">Cargando panel…</p>
+        <div className="skeleton" style={{ height: 32, width: 240 }} />
+        <div className="row wrap section" style={{ gap: 12 }}>
+          {[0, 1, 2].map((i) => (
+            <div key={i} className="skeleton" style={{ flex: '1 1 150px', height: 84 }} />
+          ))}
+        </div>
+        <div className="grid2 section">
+          <div className="skeleton" style={{ height: 260 }} />
+          <div className="skeleton" style={{ height: 260 }} />
+        </div>
       </main>
     );
   }
@@ -50,23 +60,26 @@ export default function PanelPage() {
 
   return (
     <main className="content wide">
-      <h1>{place.name}</h1>
+      <span className="eyebrow">Panel del establecimiento</span>
+      <h1 style={{ marginTop: 4 }}>{place.name}</h1>
       <p className="muted" style={{ marginTop: 4 }}>
-        Panel del establecimiento · todo se actualiza en vivo
+        Todo se actualiza en vivo: reservas, cupos y reclamos de tus promociones.
       </p>
 
       <div className="row wrap section" style={{ gap: 12 }}>
-        <div className="card flat" style={{ flex: '1 1 150px' }}>
+        <div className="card flat stat-tile">
+          <span className="eyebrow">Reservas hoy</span>
           <div className="stat">{reservations.length}</div>
-          <div className="muted small">reservas hoy</div>
         </div>
-        <div className="card flat" style={{ flex: '1 1 150px' }}>
+        <div className="card flat stat-tile">
+          <span className="eyebrow">Personas esperadas</span>
           <div className="stat">{people}</div>
-          <div className="muted small">personas esperadas</div>
         </div>
-        <div className="card flat" style={{ flex: '1 1 150px' }}>
-          <div className="stat">{free}</div>
-          <div className="muted small">cupos libres</div>
+        <div className="card flat stat-tile">
+          <span className="eyebrow">Cupos libres</span>
+          <div className="stat" style={{ color: free <= 5 ? 'var(--accent)' : undefined }}>
+            {free}
+          </div>
         </div>
       </div>
 
@@ -219,7 +232,9 @@ function PromoLauncher({ placeId }: { placeId: string }) {
 
   return (
     <section className="card">
-      <h2>Lanzar promoción</h2>
+      <h2>
+        <Icon name="bolt" size={18} /> Lanzar promoción
+      </h2>
       <p className="muted small" style={{ margin: '4px 0 12px' }}>
         Llega en el momento a quienes están mirando tu zona. Nunca se entregan más cupones que el stock.
       </p>
@@ -233,7 +248,9 @@ function PromoLauncher({ placeId }: { placeId: string }) {
               </b>
               <div style={{ fontWeight: 600 }}>{live.title}</div>
             </div>
-            <span className="badge low">{left} s</span>
+            <span className="badge low">
+              <Icon name="clock" size={13} /> {left} s
+            </span>
           </div>
           <div className="row">
             <span className="bar">
@@ -283,6 +300,7 @@ function PromoLauncher({ placeId }: { placeId: string }) {
           )}
           {error && <p className="alert error">{error}</p>}
           <button className="btn accent block" disabled={busy || stock < 1 || !title.trim()}>
+            <Icon name="bolt" size={18} />
             {busy ? 'Lanzando…' : 'Lanzar ahora'}
           </button>
         </form>
@@ -333,7 +351,9 @@ function EventForm({
 
   return (
     <section className="card">
-      <h2>Eventos</h2>
+      <h2>
+        <Icon name="calendar" size={18} /> Eventos
+      </h2>
       {events.length > 0 && (
         <div className="list" style={{ margin: '10px 0' }}>
           {events.map((e) => (
@@ -384,7 +404,9 @@ function EventForm({
 function Reservations({ items }: { items: Reservation[] }) {
   return (
     <section className="card">
-      <h2>Reservas entrantes</h2>
+      <h2>
+        <Icon name="users" size={18} /> Reservas entrantes
+      </h2>
       {items.length === 0 ? (
         <p className="muted small" style={{ marginTop: 8 }}>
           Todavía no hay reservas. Aparecen aquí en el momento en que alguien confirma.

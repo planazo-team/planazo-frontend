@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { useCallback, useEffect, useState } from 'react';
+import { Icon } from '@/components/Icon';
 import { api } from '@/lib/api';
 import { useRtEvent } from '@/lib/hooks';
 import type { Coupon, Reservation } from '@/lib/types';
@@ -30,7 +31,10 @@ export default function PlanesPage() {
 
   return (
     <main className="content">
-      <h1>Mis planes</h1>
+      <span className="eyebrow">Tus reservas y cupones</span>
+      <h1 style={{ marginTop: 4 }}>
+        Mis <em className="serif">planes</em>
+      </h1>
 
       <div className="chips section" role="tablist">
         <button className="chip" role="tab" aria-pressed={tab === 'reservas'} onClick={() => setTab('reservas')}>
@@ -41,7 +45,12 @@ export default function PlanesPage() {
         </button>
       </div>
 
-      {!loaded && <p className="muted">Cargando…</p>}
+      {!loaded && (
+        <div className="stack section">
+          <div className="skeleton" style={{ height: 120 }} />
+          <div className="skeleton" style={{ height: 120 }} />
+        </div>
+      )}
 
       {loaded && tab === 'reservas' && (
         <div className="stack section">
@@ -51,15 +60,22 @@ export default function PlanesPage() {
             </div>
           ) : (
             reservations.map((r) => (
-              <div key={r.id} className="card flat">
+              <div key={r.id} className="card ticket flat">
                 <div className="row between">
                   <h3>{r.placeName}</h3>
-                  <span className="badge ok">Confirmada</span>
+                  <span className="badge ok">
+                    <Icon name="check" size={14} /> Confirmada
+                  </span>
                 </div>
-                <p className="muted small" style={{ margin: '4px 0 10px' }}>
-                  {r.startsAt} · {r.people} persona{r.people === 1 ? '' : 's'} · reservada a las {time(r.createdAt)}
+                <p className="muted small" style={{ margin: '4px 0 0' }}>
+                  <Icon name="clock" size={13} /> {r.startsAt} · {r.people} persona{r.people === 1 ? '' : 's'} · reservada a
+                  las {time(r.createdAt)}
                 </p>
-                <div className="coupon-code">{r.code}</div>
+                <div className="tear" />
+                <div className="row between">
+                  <span className="eyebrow">Código</span>
+                  <span className="coupon-code">{r.code}</span>
+                </div>
               </div>
             ))
           )}
@@ -75,10 +91,10 @@ export default function PlanesPage() {
             </div>
           ) : (
             coupons.map((c) => (
-              <div key={c.id} className="card flat">
-                <div className="row between">
+              <div key={c.id} className="card ticket flat">
+                <div className="row between" style={{ alignItems: 'flex-start' }}>
                   <div>
-                    <b className="stat" style={{ fontSize: 22, color: 'var(--accent)' }}>
+                    <b className="stat" style={{ fontSize: 24, color: 'var(--accent)' }}>
                       {c.discount}
                     </b>
                     <h3 style={{ marginTop: 4 }}>{c.title}</h3>
@@ -86,9 +102,14 @@ export default function PlanesPage() {
                       {c.placeName} · reclamado a las {time(c.claimedAt)}
                     </p>
                   </div>
+                  <span className="badge promo">
+                    <Icon name="tag" size={13} /> Cupón
+                  </span>
                 </div>
-                <div className="coupon-code" style={{ marginTop: 10 }}>
-                  {c.code}
+                <div className="tear" />
+                <div className="row between">
+                  <span className="eyebrow">Muéstralo en {c.placeName}</span>
+                  <span className="coupon-code">{c.code}</span>
                 </div>
               </div>
             ))
