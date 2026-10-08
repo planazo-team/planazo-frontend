@@ -125,7 +125,10 @@ export type EventType =
   | 'PROMO.EXPIRED'
   | 'ROOM.JOIN'
   | 'SNAKE.SCORE'
-  | 'ROUND.END';
+  | 'ROUND.END'
+  // planazo-game publica al bus el snapshot de cada tick y la lista de salas
+  | 'GAME.STATE_UPDATE'
+  | 'LOBBY.ROOMS_UPDATE';
 
 /**
  * Evento del registro. `seq` da el orden global y permite reanudar;

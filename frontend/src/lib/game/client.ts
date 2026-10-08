@@ -1,6 +1,7 @@
 import { Client, type StompSubscription } from '@stomp/stompjs';
 import { config } from '../config';
 import { mockGame } from '../mock/game';
+import { realtime } from '../realtime';
 import { getSession } from '../session';
 import type { Direccion, EntradaLeaderboard, EstadoJuego, GameClient, GameHandlers, ResumenSala } from './types';
 
@@ -29,11 +30,19 @@ async function rest<T>(method: string, path: string): Promise<{ ok: true; data: 
   }
 }
 
+/**
+ * En producción los comandos van por STOMP directo a game (registrar la sesión,
+ * mover), pero los snapshots de cada tick y la lista de salas los publica game
+ * en el bus (`GAME.STATE_UPDATE` en `salas:<id>`, `LOBBY.ROOMS_UPDATE` en
+ * `salas`) y llegan por el canal de realtime, igual que el resto de eventos.
+ */
 class LiveGameClient implements GameClient {
   private stomp: Client | null = null;
   private subSala: StompSubscription | null = null;
   private salaActual: string | null = null;
   private h: GameHandlers | null = null;
+  private offs: Array<() => void> = [];
+  private offTopicSala: (() => void) | null = null;
 
   async listarSalas() {
     const r = await rest<ResumenSala[]>('GET', '/api/salas');
@@ -63,6 +72,18 @@ class LiveGameClient implements GameClient {
       return;
     }
     h.onConexion('conectando');
+
+    // Estado y salas: por el bus, vía realtime.
+    const rt = realtime();
+    this.offs = [
+      rt.subscribe('salas'),
+      rt.on('LOBBY.ROOMS_UPDATE', (e) => h.onSalas(e.payload as ResumenSala[])),
+      rt.on('GAME.STATE_UPDATE', (e) => {
+        const estado = e.payload as EstadoJuego;
+        if (estado.salaId === this.salaActual) h.onEstado(estado);
+      }),
+    ];
+
     // El endpoint STOMP está publicado con SockJS; su transporte WebSocket nativo vive en /ws/websocket.
     this.stomp = new Client({
       brokerURL: `${config.gameUrl}/ws/websocket`,
@@ -90,6 +111,10 @@ class LiveGameClient implements GameClient {
   }
 
   suscribirSala(salaId: string) {
+    if (this.salaActual !== salaId) {
+      this.offTopicSala?.();
+      this.offTopicSala = realtime().subscribe(`salas:${salaId}`);
+    }
     this.salaActual = salaId;
     if (!this.stomp?.connected) return;
     this.subSala?.unsubscribe();
@@ -102,6 +127,8 @@ class LiveGameClient implements GameClient {
   desuscribirSala() {
     this.subSala?.unsubscribe();
     this.subSala = null;
+    this.offTopicSala?.();
+    this.offTopicSala = null;
     this.salaActual = null;
   }
 
@@ -111,8 +138,9 @@ class LiveGameClient implements GameClient {
   }
 
   cerrar() {
-    this.subSala = null;
-    this.salaActual = null;
+    this.desuscribirSala();
+    this.offs.forEach((off) => off());
+    this.offs = [];
     void this.stomp?.deactivate();
     this.stomp = null;
   }
