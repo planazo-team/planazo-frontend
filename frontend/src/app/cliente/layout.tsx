@@ -9,6 +9,7 @@ import { ConnectionBadge } from '@/components/ConnectionBadge';
 import { Avatar } from '@/components/Avatar';
 import { Icon } from '@/components/Icon';
 import { PromoToast } from '@/components/PromoToast';
+import { salirDeSalaGuardada } from '@/lib/game/client';
 import { useRtEvent, useTopics } from '@/lib/hooks';
 import { setSession, type SessionUser } from '@/lib/session';
 
@@ -34,7 +35,9 @@ function ClientShell({ user, children }: { user: SessionUser; children: React.Re
         <Avatar name={user.name} />
         <button
           className="btn ghost sm icon"
-          onClick={() => {
+          onClick={async () => {
+            // Primero se sale de la sala del Snake (si estaba en una), después de la sesión.
+            await salirDeSalaGuardada();
             setSession(null);
             router.replace('/');
           }}

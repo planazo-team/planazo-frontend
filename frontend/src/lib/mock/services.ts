@@ -235,6 +235,32 @@ class MockBackend {
     return { ok: true, data: r };
   }
 
+  /** Cancelar: quien reservó o el negocio dueño. Devuelve los cupos y sube la versión. */
+  async cancelReservation(
+    who: { id: string; role: string; placeId?: string } | null,
+    id: string,
+  ): Promise<ApiResult<Reservation>> {
+    await wait(between(200, 400));
+    const i = this.db.reservations.findIndex((r) => r.id === id);
+    if (i === -1) return { ok: false, status: 404, error: 'La reserva no existe o ya fue cancelada.' };
+    const r = this.db.reservations[i];
+    if (!who || (r.userId !== who.id && !(who.role === 'negocio' && who.placeId === r.placeId))) {
+      return { ok: false, status: 403, error: 'Solo quien reservó o el lugar pueden cancelar esta reserva.' };
+    }
+    this.db.reservations.splice(i, 1);
+    const s = this.db.slots.find((x) => x.id === r.slotId);
+    if (s) {
+      s.taken = Math.max(0, s.taken - r.people);
+      s.version += 1;
+      this.emitInventory(s);
+    }
+    gateway().publish('RESERVE.CANCELLED', { id: r.id, placeId: r.placeId, slotId: r.slotId, people: r.people, userId: r.userId }, [
+      `place:${r.placeId}`,
+      `user:${r.userId}`,
+    ]);
+    return { ok: true, data: r };
+  }
+
   myReservations(userId: string): Reservation[] {
     return this.db.reservations.filter((r) => r.userId === userId).sort((a, b) => b.createdAt - a.createdAt);
   }

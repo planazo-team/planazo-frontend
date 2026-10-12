@@ -216,6 +216,40 @@ class MockGameClient implements GameClient {
   }
 }
 
+/** Dónde guarda la pestaña la sala en la que está (para volver a ella al recargar). */
+export const CLAVE_SALA = 'minijuego.sala';
+
+/**
+ * Saca al jugador de la sala que esta pestaña tiene guardada. Se usa al
+ * cerrar sesión y al cerrar o recargar la pestaña (con `keepalive`, para que
+ * la petición salga aunque la página ya se esté yendo). Con `olvidar: false`
+ * la sala sigue guardada: al recargar, el jugador vuelve a entrar solo.
+ */
+export async function salirDeSalaGuardada({ keepalive = false, olvidar = true } = {}): Promise<void> {
+  let salaId: string | null = null;
+  try {
+    salaId = sessionStorage.getItem(CLAVE_SALA);
+    if (olvidar) sessionStorage.removeItem(CLAVE_SALA);
+  } catch {
+    /* sin almacenamiento */
+  }
+  const s = getSession();
+  if (!salaId || !s) return;
+  if (config.mode !== 'live') {
+    mockGame().salirSala(salaId, s.id);
+    return;
+  }
+  try {
+    await fetch(`${config.apiUrl}/api/salas/${encodeURIComponent(salaId)}/jugadores/${encodeURIComponent(s.id)}`, {
+      method: 'DELETE',
+      headers: s.token ? { Authorization: `Bearer ${s.token}` } : {},
+      keepalive,
+    });
+  } catch {
+    /* si no sale, el servidor lo saca solo a los 20 s sin conexión */
+  }
+}
+
 export function crearGameClient(): GameClient {
   return config.mode === 'live' ? new LiveGameClient() : new MockGameClient();
 }

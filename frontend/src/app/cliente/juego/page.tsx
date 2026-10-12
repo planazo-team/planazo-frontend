@@ -6,7 +6,7 @@ import { boom, confeti } from '@/components/fx/eggs';
 import { Icon, SpiderArt } from '@/components/Icon';
 import { coloresDe, TableroSnake, textoEstado, textoResultado } from '@/components/TableroSnake';
 import { api } from '@/lib/api';
-import { crearGameClient } from '@/lib/game/client';
+import { CLAVE_SALA, crearGameClient, salirDeSalaGuardada } from '@/lib/game/client';
 import type {
   Direccion,
   EntradaLeaderboard,
@@ -48,8 +48,6 @@ const CONEXION: Record<EstadoConexion, string> = {
 };
 
 const textoEstadoSerpiente: Record<string, string> = { VIVA: 'viva', ELIMINADA: 'eliminada 💀', DESCONECTADA_CONGELADA: 'congelada ❄️' };
-
-const CLAVE_SALA = 'minijuego.sala';
 
 export default function JuegoPage() {
   const me = useSession();
@@ -184,9 +182,23 @@ export default function JuegoPage() {
     c.listarSalas().then(setSalas);
   }
 
+  /*
+   * Cerrar o recargar la pestaña mientras se espera a que la sala se llene: se
+   * libera el cupo de inmediato. La sala sigue guardada, así que al recargar
+   * se vuelve a entrar sola. En plena partida no: ahí el servidor congela la
+   * serpiente y deja volver (SNK-07).
+   */
+  useEffect(() => {
+    const alIrse = () => {
+      if (salaRef.current && estadoRef.current?.estado !== 'EN_CURSO') void salirDeSalaGuardada({ keepalive: true, olvidar: false });
+    };
+    window.addEventListener('pagehide', alIrse);
+    return () => window.removeEventListener('pagehide', alIrse);
+  }, []);
+
   /* ---------- teclado y d-pad ---------- */
   const mover = useCallback((direccion: Direccion) => {
-    // Cada pulsación (y cada repetición al mantenerla) es un paso; el servidor limita a 10 pasos/seg.
+    // La serpiente avanza sola en el servidor: cada tecla solo la hace girar.
     if (estadoRef.current?.estado === 'EN_CURSO') client.current?.mover(direccion);
   }, []);
 
@@ -343,9 +355,9 @@ export default function JuegoPage() {
               </button>
             </div>
             <div className="mj-ayuda" style={{ marginTop: 10 }}>
-              Cada tecla (<kbd>←</kbd> <kbd>↑</kbd> <kbd>→</kbd> <kbd>↓</kbd> o <kbd>W</kbd> <kbd>A</kbd> <kbd>S</kbd> <kbd>D</kbd>) mueve tu
-              serpiente una celda; mantenla presionada para avanzar seguido. La partida empieza sola cuando la sala está <b>llena</b>.
-              Si tu cabeza toca un borde o cualquier cuerpo, mueres; gana la última serpiente en pie.
+              Tu serpiente avanza sola: con <kbd>←</kbd> <kbd>↑</kbd> <kbd>→</kbd> <kbd>↓</kbd> o <kbd>W</kbd> <kbd>A</kbd> <kbd>S</kbd> <kbd>D</kbd> (o
+              las flechas de la pantalla) la haces girar. La partida empieza sola cuando la sala está <b>llena</b>. Si tu cabeza toca
+              un borde o cualquier cuerpo, mueres; gana la última serpiente en pie. Si te sales de la app, liberas tu cupo.
             </div>
           </div>
 

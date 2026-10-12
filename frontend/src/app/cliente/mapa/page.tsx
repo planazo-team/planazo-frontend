@@ -6,9 +6,8 @@ import { useEffect, useMemo, useState } from 'react';
 import { AnimatedNumber } from '@/components/fx/AnimatedNumber';
 import { Icon, type IconName } from '@/components/Icon';
 import { PlaceCard } from '@/components/PlaceCard';
-import { PromoCard } from '@/components/PromoCard';
+import { PromoMini } from '@/components/PromoMini';
 import { api } from '@/lib/api';
-import { coverUrl } from '@/lib/brand';
 import { useRtEvent } from '@/lib/hooks';
 import { useSession } from '@/lib/session';
 import type { Category, Place, PlaceCreatedPayload, PlaceUpdatePayload, Promo, PromoWonPayload } from '@/lib/types';
@@ -32,30 +31,6 @@ const saludo = () => {
   const h = new Date().getHours();
   return h < 12 ? 'Buenos días' : h < 19 ? 'Buenas tardes' : 'Buenas noches';
 };
-
-/** Tarjetas fijas al final del carrusel: el carrusel nunca queda medio vacío. */
-function Teasers() {
-  return (
-    <>
-      <Link href="/cliente/juego" className="teaser" style={{ background: '#1b2f9a' }}>
-        <img src={coverUrl('discoteca-2')} alt="" loading="lazy" />
-        <span className="badge gold" style={{ width: 'fit-content' }}>
-          <Icon name="trophy" /> Bonos de ganadores
-        </span>
-        <h3>¡Juega y gana!</h3>
-        <span className="small">Queda en el podio del Snake y desbloquea premios de los lugares.</span>
-      </Link>
-      <Link href="/cliente/agente" className="teaser" style={{ background: '#0e4d3a' }}>
-        <img src={coverUrl('bar-2')} alt="" loading="lazy" />
-        <span className="badge ok" style={{ width: 'fit-content' }}>
-          <Icon name="sparkles" /> Agente
-        </span>
-        <h3>¿No sabes a dónde ir?</h3>
-        <span className="small">Cuéntale al agente con quién vas y te arma la ruta con cupos reales.</span>
-      </Link>
-    </>
-  );
-}
 
 export default function MapaPage() {
   const me = useSession();
@@ -155,6 +130,42 @@ export default function MapaPage() {
         )}
       </div>
 
+      {/* Promos relámpago: una franja compacta, arriba, que no tapa el mapa. La sección completa está en /cliente/promos. */}
+      <section style={{ marginTop: 16 }} aria-label="Promos relámpago">
+        <div className="row" style={{ marginBottom: 8, gap: 8 }}>
+          <Icon name="bolt" size={16} />
+          <b className="grow">
+            Promos<span className="hide-sm"> relámpago</span>
+          </b>
+          {activas.length > 0 && <span className="badge live">{activas.length} activas</span>}
+          <Link href="/cliente/promos" className="btn ghost sm">
+            Ver todas <Icon name="arrowRight" size={14} />
+          </Link>
+        </div>
+        <div className="promo-strip">
+          {!loaded &&
+            [0, 1, 2].map((i) => <div key={i} className="skeleton" style={{ width: 232, height: 74, borderRadius: 16 }} />)}
+          {loaded && activas.length === 0 && (
+            <Link href="/cliente/promos" className="promo-mini game" style={{ width: 'auto' }}>
+              <Icon name="bolt" /> Ahora no hay promos: te avisamos en vivo apenas salga una
+            </Link>
+          )}
+          {activas.map((p) => (
+            <PromoMini key={p.id} promo={p} />
+          ))}
+          {loaded && (
+            <>
+              <Link href="/cliente/juego" className="promo-mini game">
+                <Icon name="trophy" /> Gana bonos en el Snake
+              </Link>
+              <Link href="/cliente/promos" className="promo-mini more">
+                Ver todas →
+              </Link>
+            </>
+          )}
+        </div>
+      </section>
+
       <div className="ticker section" style={{ marginTop: 16 }} aria-live="off">
         <span className="label">EN VIVO</span>
         <div className="track" style={{ '--t': `${Math.max(24, tira.length * 9)}s` } as React.CSSProperties}>
@@ -164,38 +175,6 @@ export default function MapaPage() {
         </div>
       </div>
 
-      <section className="section">
-        <div className="section-head">
-          <h2>
-            <Icon name="bolt" size={18} /> Promos relámpago
-          </h2>
-          {activas.length > 0 && <span className="badge live">{activas.length} activas</span>}
-        </div>
-        {!loaded ? (
-          <div className="rail-h">
-            {[0, 1, 2].map((i) => (
-              <div key={i} className="skeleton" style={{ height: 220 }} />
-            ))}
-          </div>
-        ) : activas.length === 0 ? (
-          <div className="empty">
-            <span className="caption">¡Silencio en la ciudad!</span>
-            <p className="muted small" style={{ margin: 0 }}>
-              Ahora no hay promociones activas. Cuando un lugar lance una, te llega aquí en el momento.
-            </p>
-            <Link href="/cliente/juego" className="btn sm ghost">
-              <Icon name="gamepad" /> Mientras tanto, juega por un bono
-            </Link>
-          </div>
-        ) : (
-          <div className="rail-h">
-            {activas.map((p) => (
-              <PromoCard key={p.id} promo={p} compact />
-            ))}
-            <Teasers />
-          </div>
-        )}
-      </section>
 
       <div className="chips section" role="group" aria-label="Filtrar por categoría" style={{ marginTop: 18 }}>
         {FILTERS.map((f) => (
