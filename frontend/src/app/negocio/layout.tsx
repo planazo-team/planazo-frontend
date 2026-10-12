@@ -35,7 +35,7 @@ function BusinessShell({ user, children }: { user: SessionUser; children: React.
         </button>
       </header>
       {children}
-      <PromoToast />
+      <PromoToast conPromos={false} />
     </div>
   );
 }

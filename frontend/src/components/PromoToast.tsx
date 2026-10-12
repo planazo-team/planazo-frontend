@@ -20,7 +20,7 @@ type Aviso =
  *  - PROMO.UNLOCKED: ganaste una partida y desbloqueaste un bono.
  *  - PLACE.CREATED: un negocio nuevo apareció en el mapa.
  */
-export function PromoToast() {
+export function PromoToast({ conPromos = true }: { conPromos?: boolean }) {
   const [avisos, setAvisos] = useState<Aviso[]>([]);
 
   const quitar = useCallback((id: string) => setAvisos((a) => a.filter((x) => x.id !== id)), []);
@@ -32,7 +32,8 @@ export function PromoToast() {
     [quitar],
   );
 
-  useRtEvent<Promo>(['PROMO.PUSH'], (e) => poner({ kind: 'promo', id: `p-${e.payload.id}`, promo: e.payload }, 25_000));
+  // El panel del negocio no muestra promos para reclamar (un negocio no reclama).
+  useRtEvent<Promo>(['PROMO.PUSH'], (e) => conPromos && poner({ kind: 'promo', id: `p-${e.payload.id}`, promo: e.payload }, 25_000));
   useRtEvent<PromoUnlockedPayload>(['PROMO.UNLOCKED'], (e) => {
     poner({ kind: 'premio', id: `u-${e.payload.promo.id}`, data: e.payload });
     boom('¡GANASTE!', window.innerWidth / 2, window.innerHeight * 0.4);
