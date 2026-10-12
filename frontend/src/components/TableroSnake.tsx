@@ -20,6 +20,13 @@ export const textoEstado = (e: string) =>
 
 export const textoResultado = (r: ResultadoPartida) => `🏆 ${r.ganadorJugadorNombre || 'Nadie'} gana`;
 
+/** La fuente de cómic que carga next/font tiene un nombre generado: se lee de la variable CSS. */
+function fuenteComic(): string {
+  if (typeof document === 'undefined') return 'Impact, system-ui';
+  const fam = getComputedStyle(document.documentElement).getPropertyValue('--font-comic').trim();
+  return fam ? `${fam}, Impact, system-ui` : 'Impact, system-ui';
+}
+
 /** Color fijo por orden de llegada, no por puntaje: así no cambia a mitad de partida. */
 export function coloresDe(estado: EstadoJuego): Record<string, string> {
   const color: Record<string, string> = {};
@@ -47,21 +54,21 @@ export function TableroSnake({
     if (!ctx) return;
 
     const rotulo = (texto: string, sub?: string, grande?: boolean) => {
-      ctx.fillStyle = 'rgba(11,15,23,.72)';
+      ctx.fillStyle = 'rgba(5,10,10,.78)';
       ctx.fillRect(0, 0, ancho, alto);
-      ctx.fillStyle = '#e5e7eb';
+      ctx.fillStyle = '#ffd84a';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
-      ctx.font = grande ? 'bold 96px system-ui' : 'bold 22px system-ui';
+      ctx.font = grande ? `96px ${fuenteComic()}` : 'bold 22px system-ui';
       ctx.fillText(texto, ancho / 2, alto / 2 - (sub ? 16 : 0));
       if (sub) {
         ctx.font = '15px system-ui';
-        ctx.fillStyle = '#9ca3af';
+        ctx.fillStyle = '#c9d6d2';
         ctx.fillText(sub, ancho / 2, alto / 2 + (grande ? 64 : 18));
       }
     };
 
-    ctx.fillStyle = '#0b0f17';
+    ctx.fillStyle = '#050a0a';
     ctx.fillRect(0, 0, ancho, alto);
 
     if (!estado) {
@@ -73,7 +80,7 @@ export function TableroSnake({
     const yo = estado.jugadores.find((j) => j.jugadorId === jugadorId);
     const faltan = estado.capacidad - estado.jugadores.length;
 
-    ctx.strokeStyle = '#151c2c';
+    ctx.strokeStyle = '#0f1d1a';
     ctx.lineWidth = 1;
     for (let x = 0; x <= ancho / CELDA; x++) {
       ctx.beginPath();
@@ -89,7 +96,7 @@ export function TableroSnake({
     }
 
     if (estado.comida) {
-      ctx.fillStyle = '#facc15';
+      ctx.fillStyle = '#ffd84a';
       ctx.beginPath();
       ctx.arc(estado.comida.x * CELDA + CELDA / 2, estado.comida.y * CELDA + CELDA / 2, CELDA / 2 - 3, 0, Math.PI * 2);
       ctx.fill();

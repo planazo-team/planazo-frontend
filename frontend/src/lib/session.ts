@@ -3,9 +3,10 @@
 import { useSyncExternalStore } from 'react';
 
 /**
- * Autenticación hardcodeada para el MVP (ver README): usuarios semilla,
- * sin registro ni recuperación de contraseña. En modo live el gateway
- * emite un JWT fijo para cada uno de ellos.
+ * Sesión del MVP: se entra solo con el nombre. Cada navegador tiene un id de
+ * dispositivo estable (localStorage), así que al recargar o volver otro día
+ * sigues siendo la misma persona, con tus reservas, cupones y tu negocio.
+ * En modo live el gateway firma el JWT (POST /api/auth/login).
  */
 
 export type Role = 'cliente' | 'negocio';
@@ -14,24 +15,13 @@ export interface SessionUser {
   id: string;
   name: string;
   role: Role;
-  /** Solo para negocio: el establecimiento que administra. */
+  /** Solo para negocio: el establecimiento que administra (si ya lo creó). */
   placeId?: string;
   token?: string;
 }
 
-export const DEMO_USERS: SessionUser[] = [
-  { id: 'u1', name: 'Juan Diego', role: 'cliente' },
-  { id: 'u2', name: 'Valentina', role: 'cliente' },
-  { id: 'u3', name: 'Camilo', role: 'cliente' },
-  { id: 'u4', name: 'Sara', role: 'cliente' },
-  { id: 'u5', name: 'Andrés', role: 'cliente' },
-  { id: 'u6', name: 'Laura', role: 'cliente' },
-  { id: 'b1', name: 'Bar El Zaguán', role: 'negocio', placeId: 'p7' },
-  { id: 'b2', name: 'Fideos de la Nona', role: 'negocio', placeId: 'p1' },
-  { id: 'b3', name: 'Terraza 85', role: 'negocio', placeId: 'p8' },
-];
-
 const KEY = 'planazo.session';
+const DEVICE_KEY = 'planazo.device';
 const listeners = new Set<() => void>();
 let cached: SessionUser | null | undefined;
 
@@ -60,6 +50,43 @@ export function setSession(user: SessionUser | null) {
   }
   listeners.forEach((l) => l());
 }
+
+/** Actualiza campos de la sesión actual (p. ej. el token nuevo al crear el negocio). */
+export function patchSession(p: Partial<SessionUser>) {
+  const cur = read();
+  if (cur) setSession({ ...cur, ...p });
+}
+
+let deviceMemo: string | null = null;
+
+/** Id estable de este navegador: 20 caracteres alfanuméricos. */
+export function deviceId(): string {
+  if (deviceMemo) return deviceMemo;
+  try {
+    const saved = window.localStorage.getItem(DEVICE_KEY);
+    if (saved && /^[A-Za-z0-9]{8,40}$/.test(saved)) return (deviceMemo = saved);
+  } catch {
+    /* sin almacenamiento */
+  }
+  const A = 'abcdefghijkmnpqrstuvwxyz23456789';
+  const bytes = new Uint8Array(20);
+  crypto.getRandomValues(bytes);
+  deviceMemo = Array.from(bytes, (b) => A[b % A.length]).join('');
+  try {
+    window.localStorage.setItem(DEVICE_KEY, deviceMemo);
+  } catch {
+    /* sin almacenamiento: dura lo que la pestaña */
+  }
+  return deviceMemo;
+}
+
+/** Mismo formato de id que firma el gateway: `c-<dispositivo>` o `n-<dispositivo>`. */
+export function localUserId(role: Role): string {
+  return `${role === 'negocio' ? 'n' : 'c'}-${deviceId()}`;
+}
+
+/** Letras (con tildes), números, espacios y algo de puntuación; de 2 a 30 caracteres. */
+export const NOMBRE_VALIDO = /^[\p{L}\p{N} .'\-_]{2,30}$/u;
 
 function subscribe(fn: () => void) {
   listeners.add(fn);

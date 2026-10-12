@@ -15,6 +15,7 @@ import type {
   Slot,
   Zone,
 } from '../types';
+import { onPartidaTerminada } from './game';
 import { gateway, uid } from './gateway';
 
 /**
@@ -55,10 +56,82 @@ type ApiResultCode = Extract<ApiResult<never>, { ok: false }>['code'];
 class MockBackend {
   private db: Db;
   private started = false;
+  /** Último momento en que cada usuario quedó en cada puesto del podio del minijuego. */
+  private podio = new Map<string, Map<number, number>>();
+  private owners = new Map<string, string>();
 
   constructor() {
     const s = buildSeed();
     this.db = { ...s, promos: [], coupons: [], reservations: [] };
+    onPartidaTerminada((podio, sala) => {
+      const at = Date.now();
+      for (const { playerId, puesto } of podio) {
+        const m = this.podio.get(playerId) ?? new Map<number, number>();
+        m.set(puesto, at);
+        this.podio.set(playerId, m);
+        const premios = this.db.promos.filter((p) => p.soloGanadores && p.stock > 0 && p.expiresAt > at && puesto <= (p.puestos ?? 1));
+        for (const promo of premios) {
+          gateway().publish('PROMO.UNLOCKED', { promo: { ...promo }, puesto, salaCodigo: sala }, [`user:${playerId}`]);
+        }
+      }
+    });
+  }
+
+  private esGanador(userId: string, promo: Promo): boolean {
+    const m = this.podio.get(userId);
+    if (!m) return false;
+    for (let i = 1; i <= (promo.puestos ?? 1); i++) if ((m.get(i) ?? 0) >= (promo.launchedAt ?? 0)) return true;
+    return false;
+  }
+
+  /* ------------------------------------------------------------------ */
+  /* negocios                                                            */
+  /* ------------------------------------------------------------------ */
+
+  ownedPlace(ownerId: string): string | undefined {
+    return this.owners.get(ownerId);
+  }
+
+  async createPlace(
+    ownerId: string,
+    ownerName: string,
+    input: { name: string; category: Category; lat: number; lng: number; description?: string; priceLevel: 0 | 1 | 2 | 3; cover?: string },
+  ): Promise<ApiResult<Place>> {
+    await wait(400);
+    if (this.owners.has(ownerId)) return conflict('YA_TIENE_LUGAR', 'Tu cuenta ya administra un lugar.');
+    const name = input.name.trim();
+    if (name.length < 3) return { ok: false, status: 400, error: 'El nombre debe tener entre 3 y 40 caracteres.' };
+    const id = `l-${code(6).toLowerCase()}`;
+    const dG = Math.hypot(input.lat - 4.6553, input.lng + 74.0566);
+    const dT = Math.hypot(input.lat - 4.6672, input.lng + 74.0536);
+    const zone: Zone = dG <= dT ? 'zona-g' : 'zona-t';
+    const place = {
+      id,
+      name,
+      category: input.category,
+      zone,
+      lat: input.lat,
+      lng: input.lng,
+      description: input.description?.trim() || 'Recién llegado a Planazo.',
+      priceLevel: input.priceLevel,
+      cover: input.cover ?? null,
+    };
+    this.db.places.push(place);
+    const franjas: Record<Category, Array<[string, number]>> = {
+      restaurante: [['19:00', 16], ['20:30', 16], ['22:00', 12]],
+      bar: [['20:00', 20], ['22:00', 20], ['23:30', 16]],
+      discoteca: [['22:00', 60], ['00:00', 60]],
+      evento: [['20:00', 50], ['22:30', 40]],
+      hotel: [],
+      'aire-libre': [],
+    };
+    franjas[input.category].forEach(([startsAt, capacity], i) =>
+      this.db.slots.push({ id: `${id}-s${i + 1}`, placeId: id, startsAt, capacity, taken: 0, version: 1 }),
+    );
+    this.owners.set(ownerId, id);
+    const created = this.toPlace(place);
+    gateway().publish('PLACE.CREATED', { place: created, ownerName }, [`zone:${zone}`, `place:${id}`]);
+    return { ok: true, data: created };
   }
 
   /* ------------------------------------------------------------------ */
@@ -221,7 +294,7 @@ class MockBackend {
 
   async launchPromo(
     placeId: string,
-    input: { title: string; discount: string; stock: number; durationS: number },
+    input: { title: string; discount: string; stock: number; durationS: number; soloGanadores?: boolean; puestos?: number },
   ): Promise<ApiResult<Promo>> {
     const p = this.place(placeId);
     if (!p) return { ok: false, status: 404, error: 'El establecimiento no existe.' };
@@ -229,7 +302,10 @@ class MockBackend {
     return { ok: true, data: this.pushPromo(p, input) };
   }
 
-  private pushPromo(p: Omit<Place, 'freeSeats'>, input: { title: string; discount: string; stock: number; durationS: number }) {
+  private pushPromo(
+    p: Omit<Place, 'freeSeats'>,
+    input: { title: string; discount: string; stock: number; durationS: number; soloGanadores?: boolean; puestos?: number },
+  ) {
     const promo: Promo = {
       id: uid(),
       placeId: p.id,
@@ -240,13 +316,17 @@ class MockBackend {
       stock: input.stock,
       initialStock: input.stock,
       expiresAt: Date.now() + input.durationS * 1000,
+      launchedAt: Date.now(),
+      soloGanadores: !!input.soloGanadores,
+      puestos: input.soloGanadores ? (input.puestos ?? 1) : 1,
     };
     this.db.promos.push(promo);
     gateway().publish('PROMO.PUSH', { ...promo }, [`zone:${p.zone}`, `place:${p.id}`]);
 
     // Demanda de la zona: otros usuarios reclaman durante la vida de la promoción.
     const claims = Math.max(1, Math.round(input.stock * between(0.6, 1.4)));
-    for (let i = 0; i < claims; i++) {
+    // En las de ganadores no hay multitud: solo reclama quien gane el minijuego.
+    for (let i = 0; i < (promo.soloGanadores ? 0 : claims); i++) {
       setTimeout(() => this.crowdClaims(promo.id), between(4000, input.durationS * 1000 * 0.9));
     }
     setTimeout(() => {
@@ -267,11 +347,22 @@ class MockBackend {
     const promo = this.db.promos.find((p) => p.id === promoId);
     if (!promo) return { ok: false, status: 404, error: 'La promoción no existe.' };
 
-    const rivals = promo.stock <= 2 ? 1 + Math.floor(Math.random() * 2) : Math.floor(Math.random() * 2);
+    const rivals = promo.soloGanadores ? 0 : promo.stock <= 2 ? 1 + Math.floor(Math.random() * 2) : Math.floor(Math.random() * 2);
     for (let i = 0; i < rivals; i++) setTimeout(() => this.crowdClaims(promoId), between(30, 350));
     await wait(between(300, 650));
 
     if (Date.now() > promo.expiresAt) return conflict('PROMO_VENCIDA', 'La promoción ya venció.');
+    if (this.db.coupons.some((c) => c.promoId === promo.id && c.userId === user.id)) {
+      return conflict('YA_RECLAMADA', 'Ya tienes un cupón de esta promoción: está en Mis planes.');
+    }
+    if (promo.soloGanadores && !this.esGanador(user.id, promo)) {
+      return {
+        ok: false,
+        status: 403,
+        code: 'SOLO_GANADORES',
+        error: 'Este bono es solo para quien gane una partida del minijuego. ¡Ve a jugar y vuelve por él!',
+      };
+    }
     if (!this.takeUnit(promo, user.name)) {
       return conflict('PROMO_AGOTADA', 'Se agotó antes de que llegara tu solicitud. Te avisamos de la próxima.');
     }
@@ -362,7 +453,9 @@ class MockBackend {
         why: p.description,
       });
     }
-    stops.sort((a, b) => a.hour.localeCompare(b.hour));
+    // La madrugada (00:00–05:59) va al final de la noche, no al principio.
+    const clave = (h: string) => (h < '06' ? `2${h}` : `1${h}`);
+    stops.sort((a, b) => clave(a.hour).localeCompare(clave(b.hour)));
     return { ok: true, data: { intro, stops } };
   }
 
@@ -434,6 +527,18 @@ class MockBackend {
       ['p8', 'Segunda ronda al 30%', '-30%'],
       ['p3', 'Combo de seis dumplings', '-40%'],
     ];
+    const club = this.place('p9');
+    if (club) {
+      this.pushPromo(club, {
+        title: 'Cover gratis para quien gane en el Snake',
+        discount: 'Cover gratis',
+        stock: 5,
+        durationS: 6 * 3600,
+        soloGanadores: true,
+        puestos: 1,
+      });
+    }
+
     let i = 0;
     const promoLoop = () => {
       const [pid, title, discount] = offers[i++ % offers.length];
