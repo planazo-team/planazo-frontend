@@ -67,7 +67,7 @@ export function PromoCard({ promo, onClose, compact }: { promo: Promo; onClose?:
           ✕
         </button>
       )}
-      <div className="place-line">
+      <div className="place-line" style={onClose ? { paddingRight: 40 } : undefined}>
         <PlaceLogo place={{ id: promo.placeId, name: promo.placeName, category: 'bar' }} size={30} />
         <span className="grow" style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
           {promo.placeName}
