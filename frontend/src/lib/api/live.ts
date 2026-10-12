@@ -1,6 +1,6 @@
 import { config } from '../config';
-import { getSession } from '../session';
-import type { ApiResult, ErrorCode, PlaceDetail, Promo } from '../types';
+import { deviceId, getSession, setSession, type SessionUser } from '../session';
+import type { ApiResult, ErrorCode, Place, PlaceDetail, Promo } from '../types';
 import type { Api } from './types';
 
 /**
@@ -21,6 +21,8 @@ async function call<T>(method: string, path: string, body?: unknown): Promise<Ap
     });
     const data = res.status === 204 ? null : await res.json().catch(() => null);
     if (!res.ok) {
+      // Token vencido o firmado con otro secreto: se cierra la sesión y se vuelve a entrar con el nombre.
+      if (res.status === 401 && token && !path.startsWith('/api/auth/login')) setSession(null);
       return {
         ok: false,
         status: res.status,
@@ -47,7 +49,26 @@ const qs = (o: Record<string, string | undefined>) => {
   return s ? `?${s}` : '';
 };
 
+type AuthResponse = { token: string; user: { id: string; name: string; role: SessionUser['role']; placeId: string | null } };
+
+const toSession = (r: AuthResponse): SessionUser => ({
+  id: r.user.id,
+  name: r.user.name,
+  role: r.user.role,
+  ...(r.user.placeId ? { placeId: r.user.placeId } : {}),
+  token: r.token,
+});
+
 export const liveApi: Api = {
+  login: async (name, role) => {
+    const r = await call<AuthResponse>('POST', '/api/auth/login', { name, role, deviceId: deviceId() });
+    return r.ok ? { ok: true, data: toSession(r.data) } : r;
+  },
+  createBusiness: async (input) => {
+    const r = await call<AuthResponse & { place: Place }>('POST', '/api/auth/negocio', input);
+    return r.ok ? { ok: true, data: { place: r.data.place, user: toSession(r.data) } } : r;
+  },
+
   listPlaces: (q = {}) => get(`/api/places${qs({ zone: q.zone, category: q.category })}`, []),
   getPlace: async (id) => {
     const place = await get<PlaceDetail | null>(`/api/places/${encodeURIComponent(id)}`, null);
@@ -72,9 +93,3 @@ export const liveApi: Api = {
   createEvent: (input) => call('POST', '/api/events', input),
   launchPromo: (input) => call('POST', '/api/promos', input),
 };
-
-/** Login de demo: el gateway firma un JWT fijo para el usuario semilla. */
-export async function demoLogin(userId: string): Promise<string | undefined> {
-  const r = await call<{ token: string }>('POST', '/api/auth/demo', { userId });
-  return r.ok ? r.data.token : undefined;
-}

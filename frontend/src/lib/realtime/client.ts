@@ -143,6 +143,13 @@ export class RealtimeClient {
 
   /** Entrega un evento. Devuelve `false` si era un duplicado. */
   private deliver(e: RtEvent): boolean {
+    // seq 0: evento efímero (ticks del juego, lista de salas). No se guarda en el
+    // registro ni se reanuda, así que tampoco ocupa la memoria de duplicados.
+    if (!e.seq) {
+      this.handlers.get(e.type)?.forEach((h) => h(e));
+      this.handlers.get('*')?.forEach((h) => h(e));
+      return true;
+    }
     if (this.seen.has(e.id)) {
       this.patch({ duplicates: this.status.duplicates + 1 });
       return false;

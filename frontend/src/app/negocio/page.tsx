@@ -1,23 +1,37 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
+import { CrearLugar } from '@/components/business/CrearLugar';
+import { AnimatedNumber } from '@/components/fx/AnimatedNumber';
+import { boom } from '@/components/fx/eggs';
 import { Icon } from '@/components/Icon';
+import { PlaceLogo } from '@/components/Logo';
 import { api } from '@/lib/api';
+import { coverOf } from '@/lib/brand';
 import { config } from '@/lib/config';
-import { useNow, useRtEvent } from '@/lib/hooks';
+import { useNow, useRtEvent, useTopics } from '@/lib/hooks';
 import { useSession } from '@/lib/session';
-import type { InvUpdatePayload, PlaceDetail, Promo, Reservation, Slot } from '@/lib/types';
+import { CATEGORY_LABEL, ZONES } from '@/lib/seed';
+import type { InvUpdatePayload, PlaceDetail, Promo, PromoWonPayload, Reservation, Slot } from '@/lib/types';
 
 const time = (ms: number) => new Date(ms).toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' });
 
 export default function PanelPage() {
   const me = useSession();
-  const placeId = me?.placeId;
+  if (!me) return null;
+  // Un negocio recién llegado todavía no tiene lugar: primero lo crea.
+  if (!me.placeId) return <CrearLugar user={me} />;
+  return <Panel placeId={me.placeId} />;
+}
+
+function Panel({ placeId }: { placeId: string }) {
   const [place, setPlace] = useState<PlaceDetail | null>(null);
   const [reservations, setReservations] = useState<Reservation[]>([]);
 
+  // El panel sigue su propio establecimiento: reservas, inventario y reclamos de sus promociones.
+  useTopics([`place:${placeId}`]);
+
   const load = useCallback(async () => {
-    if (!placeId) return;
     const [p, r] = await Promise.all([api.getPlace(placeId), api.placeReservations(placeId)]);
     setPlace(p);
     setReservations(r);
@@ -31,20 +45,20 @@ export default function PanelPage() {
   useRtEvent<Reservation>(['RESERVE.OK'], (e) => {
     if (e.payload.placeId !== placeId) return;
     setReservations((rs) => (rs.some((r) => r.id === e.payload.id) ? rs : [e.payload, ...rs]));
+    boom('¡RESERVA!', window.innerWidth - 120, 140);
   });
   useRtEvent<InvUpdatePayload>(['INV.UPDATE'], (e) => {
     if (e.payload.placeId !== placeId) return;
     setPlace((p) => (p ? { ...p, slots: p.slots.map((s) => (s.id === e.payload.slot.id ? e.payload.slot : s)) } : p));
   });
 
-  if (!placeId) return <main className="content wide">Esta cuenta no tiene un establecimiento asignado.</main>;
   if (!place) {
     return (
       <main className="content wide">
-        <div className="skeleton" style={{ height: 32, width: 240 }} />
-        <div className="row wrap section" style={{ gap: 12 }}>
+        <div className="skeleton" style={{ height: 180, borderRadius: 22 }} />
+        <div className="stat-tiles section">
           {[0, 1, 2].map((i) => (
-            <div key={i} className="skeleton" style={{ flex: '1 1 150px', height: 84 }} />
+            <div key={i} className="skeleton" style={{ height: 84 }} />
           ))}
         </div>
         <div className="grid2 section">
@@ -60,37 +74,45 @@ export default function PanelPage() {
 
   return (
     <main className="content wide">
-      <span className="eyebrow">Panel del establecimiento</span>
-      <h1 style={{ marginTop: 4 }}>{place.name}</h1>
-      <p className="muted" style={{ marginTop: 4 }}>
-        Todo se actualiza en vivo: reservas, cupos y reclamos de tus promociones.
-      </p>
+      <header className="biz-hero">
+        <img src={coverOf(place)} alt="" />
+        <PlaceLogo place={place} size={78} />
+        <div className="grow">
+          <span className="caption sm">Panel del establecimiento</span>
+          <h1 style={{ marginTop: 10 }} className="misprint-hover">
+            {place.name}
+          </h1>
+          <div className="muted small" style={{ marginTop: 4 }}>
+            {CATEGORY_LABEL[place.category]} · {ZONES[place.zone].label} · todo se actualiza en vivo
+          </div>
+        </div>
+      </header>
 
-      <div className="row wrap section" style={{ gap: 12 }}>
-        <div className="card flat stat-tile">
-          <span className="eyebrow">Reservas hoy</span>
-          <div className="stat">{reservations.length}</div>
+      <div className="stat-tiles section">
+        <div className="card stat-tile">
+          <span className="eyebrow">Reservas</span>
+          <AnimatedNumber value={reservations.length} className="stat" />
         </div>
-        <div className="card flat stat-tile">
-          <span className="eyebrow">Personas esperadas</span>
-          <div className="stat">{people}</div>
+        <div className="card stat-tile">
+          <span className="eyebrow">Personas</span>
+          <AnimatedNumber value={people} className="stat" />
         </div>
-        <div className="card flat stat-tile">
+        <div className="card stat-tile">
           <span className="eyebrow">Cupos libres</span>
           <div className="stat" style={{ color: free <= 5 ? 'var(--accent)' : undefined }}>
-            {free}
+            <AnimatedNumber value={free} />
           </div>
         </div>
       </div>
 
       <div className="grid2 section">
-        <div className="stack">
+        <div className="stack" style={{ gap: 16 }}>
+          <PromoLauncher placeId={place.id} placeName={place.name} zone={place.zone} />
           <SlotEditor placeId={place.id} slots={place.slots} onReload={load} />
-          <EventForm placeId={place.id} events={place.events} onCreated={load} />
         </div>
-        <div className="stack">
-          <PromoLauncher placeId={place.id} />
+        <div className="stack" style={{ gap: 16 }}>
           <Reservations items={reservations} />
+          <EventForm placeId={place.id} events={place.events} onCreated={load} />
         </div>
       </div>
     </main>
@@ -195,19 +217,28 @@ function SlotEditor({ placeId, slots, onReload }: { placeId: string; slots: Slot
 
 type Claim = { winner: string; stock: number; at: number };
 
-function PromoLauncher({ placeId }: { placeId: string }) {
+const PLANTILLAS: Array<{ title: string; discount: string }> = [
+  { title: 'Cóctel de la casa a mitad de precio', discount: '-50%' },
+  { title: '2x1 en la primera ronda', discount: '2x1' },
+  { title: 'Postre gratis con tu plato', discount: 'Postre gratis' },
+  { title: 'Entrada sin cover antes de las 11', discount: 'Cover gratis' },
+];
+
+function PromoLauncher({ placeId, placeName, zone }: { placeId: string; placeName: string; zone: PlaceDetail['zone'] }) {
   const now = useNow(500);
-  const [title, setTitle] = useState('Cóctel de la casa a mitad de precio');
-  const [discount, setDiscount] = useState('-50%');
+  const [title, setTitle] = useState(PLANTILLAS[0].title);
+  const [discount, setDiscount] = useState(PLANTILLAS[0].discount);
   const [stock, setStock] = useState(3);
-  const [duration, setDuration] = useState(60);
+  const [duration, setDuration] = useState(120);
+  const [soloGanadores, setSoloGanadores] = useState(false);
+  const [puestos, setPuestos] = useState(1);
   const [busy, setBusy] = useState(false);
   const [live, setLive] = useState<Promo | null>(null);
   const [claims, setClaims] = useState<Claim[]>([]);
   const [expired, setExpired] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  useRtEvent<{ promoId: string; stock: number; winner: string }>(['PROMO.WON'], (e) => {
+  useRtEvent<PromoWonPayload>(['PROMO.WON'], (e) => {
     if (!live || e.payload.promoId !== live.id) return;
     setLive((p) => (p ? { ...p, stock: e.payload.stock } : p));
     setClaims((c) => [{ winner: e.payload.winner, stock: e.payload.stock, at: e.at }, ...c]);
@@ -219,12 +250,24 @@ function PromoLauncher({ placeId }: { placeId: string }) {
   async function launch() {
     setBusy(true);
     setError(null);
-    const r = await api.launchPromo({ placeId, title, discount, stock, durationS: duration });
+    const r = await api.launchPromo({
+      placeId,
+      title,
+      discount,
+      stock,
+      durationS: duration,
+      soloGanadores,
+      puestos: soloGanadores ? puestos : undefined,
+      // Si promo aún no conoce este lugar (recién creado), con esto lo registra.
+      placeName,
+      zone,
+    });
     setBusy(false);
     if (!r.ok) return setError(r.error);
     setLive(r.data);
     setClaims([]);
     setExpired(false);
+    boom(soloGanadores ? '¡A JUGAR!' : '¡LANZADA!', window.innerWidth / 2, 220, soloGanadores);
   }
 
   const left = live ? Math.max(0, Math.ceil((live.expiresAt - now) / 1000)) : 0;
@@ -232,76 +275,119 @@ function PromoLauncher({ placeId }: { placeId: string }) {
 
   return (
     <section className="card">
-      <h2>
-        <Icon name="bolt" size={18} /> Lanzar promoción
-      </h2>
-      <p className="muted small" style={{ margin: '4px 0 12px' }}>
-        Llega en el momento a quienes están mirando tu zona. Nunca se entregan más cupones que el stock.
+      <div className="row between">
+        <h2>
+          <Icon name="bolt" size={18} /> Lanzar promoción
+        </h2>
+        {live && !over && <span className="badge live">En el aire</span>}
+      </div>
+      <p className="muted small" style={{ margin: '6px 0 14px' }}>
+        Llega en el momento a quienes miran tu zona. Nunca se entregan más cupones que el stock, y cada persona reclama una sola vez.
       </p>
 
       {live && !over ? (
-        <div className="stack fade-in">
-          <div className="row between">
+        <div className={`promo-card fade-in${live.soloGanadores ? ' winners' : ''}`}>
+          <div className="row between" style={{ alignItems: 'flex-start' }}>
             <div>
-              <b className="stat" style={{ color: 'var(--accent)' }}>
-                {live.discount}
-              </b>
-              <div style={{ fontWeight: 600 }}>{live.title}</div>
+              {live.soloGanadores && (
+                <span className="badge gold" style={{ marginBottom: 6 }}>
+                  <Icon name="trophy" /> {live.puestos && live.puestos > 1 ? `Top ${live.puestos}` : 'Solo el ganador'}
+                </span>
+              )}
+              <div className="disc">{live.discount}</div>
+              <div className="title">{live.title}</div>
             </div>
-            <span className="badge low">
-              <Icon name="clock" size={13} /> {left} s
+            <span className="pill">
+              <Icon name="clock" /> {left} s
             </span>
           </div>
-          <div className="row">
-            <span className="bar">
-              <i style={{ width: `${(1 - live.stock / live.initialStock) * 100}%`, background: 'var(--accent)' }} />
+          <div className="row" style={{ marginTop: 14 }}>
+            <span className="bar" style={{ background: 'rgba(0,0,0,.25)' }}>
+              <i style={{ width: `${(1 - live.stock / live.initialStock) * 100}%`, background: '#fff' }} />
             </span>
-            <b className="small">
-              {live.initialStock - live.stock} de {live.initialStock} entregados
+            <b className="small tnum">
+              {live.initialStock - live.stock} de {live.initialStock}
             </b>
           </div>
         </div>
       ) : (
         <form
           className="stack"
+          style={{ gap: 12 }}
           onSubmit={(e) => {
             e.preventDefault();
             launch();
           }}
         >
+          <div className="chips" aria-label="Ideas rápidas">
+            {PLANTILLAS.map((p) => (
+              <button
+                key={p.title}
+                type="button"
+                className="chip"
+                aria-pressed={title === p.title}
+                onClick={() => {
+                  setTitle(p.title);
+                  setDiscount(p.discount);
+                }}
+              >
+                {p.discount}
+              </button>
+            ))}
+          </div>
           <label className="field">
             Oferta
-            <input value={title} onChange={(e) => setTitle(e.target.value)} required maxLength={60} />
+            <input value={title} onChange={(e) => setTitle(e.target.value)} required maxLength={80} />
           </label>
           <div className="row wrap">
-            <label className="field" style={{ flex: 1 }}>
+            <label className="field" style={{ flex: '1 1 110px' }}>
               Descuento
-              <input value={discount} onChange={(e) => setDiscount(e.target.value)} required maxLength={10} />
+              <input value={discount} onChange={(e) => setDiscount(e.target.value)} required maxLength={40} />
             </label>
-            <label className="field" style={{ flex: 1 }}>
+            <label className="field" style={{ flex: '1 1 80px' }}>
               Cupones
-              <input type="number" min={1} max={50} value={stock} onChange={(e) => setStock(Number(e.target.value))} />
+              <input type="number" min={1} max={1000} value={stock} onChange={(e) => setStock(Number(e.target.value))} />
             </label>
-            <label className="field" style={{ flex: 1 }}>
+            <label className="field" style={{ flex: '1 1 90px' }}>
               Duración (s)
-              <input
-                type="number"
-                min={15}
-                max={600}
-                value={duration}
-                onChange={(e) => setDuration(Number(e.target.value))}
-              />
+              <input type="number" min={10} max={86400} value={duration} onChange={(e) => setDuration(Number(e.target.value))} />
             </label>
           </div>
+
+          <div className="card flat" style={{ padding: 12, background: soloGanadores ? 'rgba(47,107,255,.14)' : undefined }}>
+            <label className="switch">
+              <input type="checkbox" checked={soloGanadores} onChange={(e) => setSoloGanadores(e.target.checked)} />
+              <span className="grow">
+                <b style={{ display: 'block' }}>
+                  <Icon name="trophy" size={15} /> Solo para ganadores del minijuego
+                </b>
+                <span className="muted small">La reclama quien quede en el podio de una partida jugada después de lanzarla.</span>
+              </span>
+            </label>
+            {soloGanadores && (
+              <div className="segmented fade-in" style={{ marginTop: 10 }}>
+                {[1, 2, 3].map((n) => (
+                  <button key={n} type="button" aria-pressed={puestos === n} onClick={() => setPuestos(n)}>
+                    {n === 1 ? '🥇 Solo el 1.º' : n === 2 ? '🥇🥈 Top 2' : '🏆 Podio'}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
           {live && over && (
-            <p className="alert info">
+            <p className="alert info" style={{ margin: 0 }}>
               La promoción anterior terminó: {live.initialStock - live.stock} de {live.initialStock} cupones entregados.
             </p>
           )}
-          {error && <p className="alert error">{error}</p>}
-          <button className="btn accent block" disabled={busy || stock < 1 || !title.trim()}>
-            <Icon name="bolt" size={18} />
-            {busy ? 'Lanzando…' : 'Lanzar ahora'}
+          {error && (
+            <p className="alert error" style={{ margin: 0 }}>
+              {error}
+            </p>
+          )}
+          <button className={`btn block ${soloGanadores ? 'yellow' : 'hero'}`} disabled={busy || stock < 1 || !title.trim()} style={{ minHeight: 52 }}>
+            <Icon name={soloGanadores ? 'trophy' : 'bolt'} />
+            {busy ? 'Lanzando…' : soloGanadores ? 'Lanzar bono para ganadores' : 'Lanzar ahora'}
           </button>
         </form>
       )}
@@ -309,9 +395,11 @@ function PromoLauncher({ placeId }: { placeId: string }) {
       {claims.length > 0 && (
         <div className="list" style={{ marginTop: 12 }}>
           {claims.map((c, i) => (
-            <div key={`${c.at}-${i}`} className="item small fade-in">
+            <div key={`${c.at}-${i}`} className="item small pop-in">
               <span className="badge ok">Entregado</span>
-              <span style={{ flex: 1 }}>{c.winner}</span>
+              <span className="grow" style={{ fontWeight: 700 }}>
+                {c.winner}
+              </span>
               <span className="muted">quedan {c.stock}</span>
             </div>
           ))}

@@ -17,7 +17,9 @@ export function AuthGate({ role, children }: { role: Role; children: (user: Sess
   if (!allowed) {
     return (
       <main className="content">
-        <p className="muted">Cargando…</p>
+        <div className="row" style={{ marginTop: 40, justifyContent: 'center' }}>
+          <span className="caption">Calibrando el sentido arácnido…</span>
+        </div>
       </main>
     );
   }

@@ -19,6 +19,8 @@ export interface Place {
   priceLevel: 0 | 1 | 2 | 3;
   /** Cupos libres sumando todas las franjas. `null` si el lugar no maneja cupos. */
   freeSeats: number | null;
+  /** Portada elegida por un negocio nuevo (clave de la galería, ver lib/brand.ts). */
+  cover?: string | null;
 }
 
 /** Franja horaria reservable. `version` es la clave del lock optimista (CC-3). */
@@ -51,6 +53,12 @@ export interface Promo {
   initialStock: number;
   /** epoch ms */
   expiresAt: number;
+  /** epoch ms. Para las de ganadores, solo cuentan partidas terminadas después. */
+  launchedAt?: number;
+  /** Solo la reclaman quienes queden en el podio de una partida del minijuego. */
+  soloGanadores?: boolean;
+  /** 1 = solo el ganador, 3 = el podio. */
+  puestos?: number;
 }
 
 /** Ficha completa (booking · GET /places/:id, más las promociones activas de promo). */
@@ -94,6 +102,8 @@ export interface PlanStop {
 export interface PlanResult {
   intro: string;
   stops: PlanStop[];
+  /** Quién armó el plan: el modelo (Claude) o la plantilla de respaldo. */
+  source?: 'claude' | 'plantilla';
 }
 
 /** Resultado de una llamada que puede fallar de forma esperada (p. ej. 409). */
@@ -106,6 +116,9 @@ export type ErrorCode =
   | 'SIN_CUPO'
   | 'PROMO_AGOTADA'
   | 'PROMO_VENCIDA'
+  | 'YA_RECLAMADA'
+  | 'SOLO_GANADORES'
+  | 'YA_TIENE_LUGAR'
   | 'CAPACIDAD_MENOR'
   | 'SALA_NO_EXISTE'
   | 'SALA_EN_JUEGO'
@@ -123,6 +136,11 @@ export type EventType =
   | 'PROMO.PUSH'
   | 'PROMO.WON'
   | 'PROMO.EXPIRED'
+  // promo avisa a quien quedó en el podio que ya puede reclamar un bono de ganadores
+  | 'PROMO.UNLOCKED'
+  // booking anuncia un lugar nuevo creado por un negocio
+  | 'PLACE.CREATED'
+  | 'GAME.PARTIDA_FINALIZADA'
   | 'ROOM.JOIN'
   | 'SNAKE.SCORE'
   | 'ROUND.END'
@@ -147,6 +165,25 @@ export interface RtEvent<T = unknown> {
 export interface PlaceUpdatePayload {
   placeId: string;
   freeSeats: number | null;
+}
+
+export interface PlaceCreatedPayload {
+  place: Place;
+  ownerName?: string;
+}
+
+export interface PromoUnlockedPayload {
+  promo: Promo;
+  puesto: number;
+  salaCodigo?: string;
+}
+
+export interface PromoWonPayload {
+  promoId: string;
+  placeId: string;
+  stock: number;
+  winner: string;
+  userId?: string;
 }
 
 export interface InvUpdatePayload {

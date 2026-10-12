@@ -42,7 +42,7 @@ export function ConnectionBadge() {
       {note && <span className="conn-note fade-in">{note}</span>}
       <span className={`conn ${s.state}`} title={`Último evento recibido: #${s.lastSeq}`}>
         <span className="dot" />
-        {LABEL[s.state]}
+        <span className="label">{LABEL[s.state]}</span>
         {config.demo && s.state === 'online' && <span className="mono">#{s.lastSeq}</span>}
       </span>
       {config.demo && realtime().canSimulateDrop() && (

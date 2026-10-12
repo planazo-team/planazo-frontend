@@ -52,6 +52,14 @@ interface Sim {
   arranque?: ReturnType<typeof setTimeout>;
 }
 
+/** Quién se entera cuando termina una partida (el promo simulado, para los bonos de ganadores). */
+type Podio = Array<{ playerId: string; name: string; puesto: number }>;
+const alTerminar = new Set<(podio: Podio, sala: string) => void>();
+export function onPartidaTerminada(fn: (podio: Podio, sala: string) => void) {
+  alTerminar.add(fn);
+  return () => alTerminar.delete(fn);
+}
+
 class MockGame {
   private rooms = new Map<string, Sim>();
   private hall: HallEntry[] = [];
@@ -61,7 +69,7 @@ class MockGame {
     this.seedRoom('PLAN', 'bot-host', 'Camilo');
     // Catálogo fijo del minijuego (V1__catalogo_salas_y_resultados.sql), con cupo 2
     // para que un solo bot complete la sala y la partida arranque sola.
-    for (const [id, nombre] of [['sala-001', 'Sala Bogotá'], ['sala-002', 'Sala Medellín'], ['sala-003', 'Sala Cali'], ['sala-004', 'Sala Cartagena']]) {
+    for (const [id, nombre] of [['sala-001', 'Sala Bogotá'], ['sala-002', 'Sala Medellín'], ['sala-003', 'Sala Cali'], ['sala-004', 'Sala Cartagena'], ['sala-005', 'Duelo Zona G'], ['sala-007', 'Tierra-616']]) {
       const sim = this.blank(id, 'catalogo');
       sim.nombre = nombre;
       sim.capacidad = 2;
@@ -386,6 +394,9 @@ class MockGame {
     }
     this.hall.sort((a, b) => b.score - a.score || a.at - b.at);
     this.hall = this.hall.slice(0, 50);
+
+    const podio = board.slice(0, 3).map((e, i) => ({ playerId: e.playerId, name: e.name, puesto: i + 1 }));
+    alTerminar.forEach((fn) => fn(podio, sim.nombre ?? sim.code));
 
     gateway().publish(
       'ROUND.END',

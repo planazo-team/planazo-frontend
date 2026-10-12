@@ -1,7 +1,11 @@
 'use client';
 
+import Link from 'next/link';
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { boom, confeti } from '@/components/fx/eggs';
+import { Icon, SpiderArt } from '@/components/Icon';
 import { coloresDe, TableroSnake, textoEstado, textoResultado } from '@/components/TableroSnake';
+import { api } from '@/lib/api';
 import { crearGameClient } from '@/lib/game/client';
 import type {
   Direccion,
@@ -13,11 +17,13 @@ import type {
   ResumenSala,
 } from '@/lib/game/types';
 import { useSession } from '@/lib/session';
+import type { Promo } from '@/lib/types';
 
 /**
  * Minijuego Planazo: el cliente de planazo-game (test-client.html de Diego)
- * llevado a la app, con su mismo diseño y su mismo protocolo. La única
- * diferencia es que el usuario ya entró por el gateway: el JWT es el mismo.
+ * llevado a la app, con su mismo protocolo y la piel de la app. El usuario ya
+ * entró por el gateway: el JWT es el mismo. Quedar en el podio desbloquea los
+ * bonos "solo ganadores" de promo.
  */
 
 const TECLAS: Record<string, Direccion> = {
@@ -36,9 +42,9 @@ const TECLAS: Record<string, Direccion> = {
 };
 
 const CONEXION: Record<EstadoConexion, string> = {
-  conectando: '⏳ conectando…',
-  en_linea: '🟢 en línea',
-  desconectado: '🔴 desconectado — reintentando…',
+  conectando: 'Conectando…',
+  en_linea: 'En línea',
+  desconectado: 'Reconectando…',
 };
 
 const textoEstadoSerpiente: Record<string, string> = { VIVA: 'viva', ELIMINADA: 'eliminada 💀', DESCONECTADA_CONGELADA: 'congelada ❄️' };
@@ -57,7 +63,11 @@ export default function JuegoPage() {
   const [ultimoResultado, setUltimoResultado] = useState<ResultadoPartida | null>(null);
   const [leaderboard, setLeaderboard] = useState<EntradaLeaderboard[]>([]);
   const [log, setLog] = useState<string[]>(['Listo. Elige una sala para jugar.']);
+  const [premios, setPremios] = useState<Promo[]>([]);
+  const celebrada = useRef<string | null>(null);
 
+  const jugadorIdRef = useRef(jugadorId);
+  jugadorIdRef.current = jugadorId;
   const salaRef = useRef<string | null>(null);
   salaRef.current = salaActualId;
   const estadoRef = useRef<EstadoJuego | null>(null);
@@ -71,6 +81,11 @@ export default function JuegoPage() {
     client.current?.leaderboard(10).then(setLeaderboard);
   }, []);
 
+  // Los bonos "solo ganadores" que están en juego ahora mismo.
+  useEffect(() => {
+    api.activePromos().then((ps) => setPremios(ps.filter((p) => p.soloGanadores)));
+  }, []);
+
   /* ---------- conexión ---------- */
   useEffect(() => {
     if (!me) return;
@@ -81,6 +96,13 @@ export default function JuegoPage() {
       onEstado: (e) => {
         setEstado(e);
         if (e.resultado) {
+          // ¡Ganaste! Se celebra una sola vez por partida.
+          const clave = `${e.salaId}:${e.resultado.finalizadaEn}`;
+          if (e.resultado.ganadorJugadorId === jugadorIdRef.current && celebrada.current !== clave) {
+            celebrada.current = clave;
+            boom('¡SPIDER-CAMPEÓN!', window.innerWidth / 2, window.innerHeight * 0.35, true);
+            confeti(window.innerWidth / 2, window.innerHeight * 0.35, 70);
+          }
           setUltimoResultado((prev) => {
             if (prev?.finalizadaEn !== e.resultado?.finalizadaEn) refrescarLeaderboard();
             return e.resultado;
@@ -187,19 +209,53 @@ export default function JuegoPage() {
 
   return (
     <main className="content wide mj">
-      <h1>🐍 Minijuego Planazo</h1>
+      <div className="row between wrap" style={{ alignItems: 'flex-end' }}>
+        <div>
+          <span className="caption sm">Minijuego multijugador en vivo</span>
+          <h1 style={{ marginTop: 10 }}>
+            Snake <em className="serif">Planazo</em>
+          </h1>
+        </div>
+        <span className={`conn ${conexion === 'en_linea' ? 'online' : conexion === 'desconectado' ? 'offline' : ''}`}>
+          <span className="dot" />
+          {CONEXION[conexion]}
+        </span>
+      </div>
+      <p className="muted" style={{ margin: '8px 0 18px', maxWidth: 640 }}>
+        Únete a una sala; la partida arranca sola cuando se llena. Gana la última serpiente en pie, y el podio desbloquea bonos de
+        los lugares.
+      </p>
 
       <div className="mj-layout">
-        <div>
-          <div className="mj-panel">
-            <h2>1. Jugador</h2>
-            <div className="mj-fila">
-              <span>✅ {me.name}</span> <span className="mj-conexion">{CONEXION[conexion]}</span>
-            </div>
+        <div className="mj-side">
+          <div className="mj-panel" style={{ background: 'linear-gradient(150deg, #3e7bff, #2f6bff 50%, #1b2f9a)', color: '#fff' }}>
+            <h2 style={{ color: 'rgba(255,255,255,.85)' }}>
+              <Icon name="trophy" size={14} /> Premios en juego
+            </h2>
+            {premios.length === 0 ? (
+              <div className="small" style={{ opacity: 0.92 }}>
+                Ahora no hay bonos para ganadores. Cuando un lugar lance uno, ganar una partida te lo desbloquea.
+              </div>
+            ) : (
+              premios.map((p) => (
+                <Link key={p.id} href={`/cliente/lugar/${p.placeId}`} className="row" style={{ padding: '6px 0', gap: 10 }}>
+                  <span className="comic" style={{ fontSize: 20, color: 'var(--yellow)', textShadow: '2px 2px 0 #020505' }}>
+                    {p.discount}
+                  </span>
+                  <span className="grow small" style={{ fontWeight: 700 }}>
+                    {p.placeName}
+                    <span style={{ display: 'block', opacity: 0.8, fontWeight: 500 }}>
+                      {p.puestos && p.puestos > 1 ? `Top ${p.puestos}` : 'Solo el ganador'} · quedan {p.stock}
+                    </span>
+                  </span>
+                  <Icon name="arrowRight" size={16} />
+                </Link>
+              ))
+            )}
           </div>
 
           <div className="mj-panel">
-            <h2>2. Salas (en vivo)</h2>
+            <h2>Salas en vivo</h2>
             {salas.length === 0 ? (
               <div className="mj-ayuda">{conexion === 'en_linea' ? 'No hay salas todavía.' : 'Conectando con el juego…'}</div>
             ) : (
@@ -208,17 +264,21 @@ export default function JuegoPage() {
                 const lleno = s.cantidadJugadores >= s.capacidad;
                 const puede = !esActual && !lleno && s.estado !== 'EN_CURSO';
                 const nombres = s.nombresJugadores.length ? s.nombresJugadores.join(', ') : 'vacía';
+                const multiverso = s.codigo === 'Tierra-616';
                 return (
                   <div key={s.id} className={`mj-sala${esActual ? ' actual' : ''}`}>
-                    <div>
-                      <b>{s.codigo}</b> <span className={`mj-chip ${s.estado}`}>{textoEstado(s.estado)}</span>
+                    <div style={{ minWidth: 0 }}>
+                      <b>
+                        {multiverso && <SpiderArt size={16} color="#f1f7f4" eyes="#070d0c" />} {s.codigo}
+                      </b>{' '}
+                      <span className={`mj-chip ${s.estado}`}>{textoEstado(s.estado)}</span>
                       <small>
                         {s.cantidadJugadores}/{s.capacidad} jugadores
                         {s.estado === 'ESPERANDO_JUGADORES' ? ` · faltan ${s.capacidad - s.cantidadJugadores}` : ''}
                       </small>
-                      <small>{nombres}</small>
+                      <small style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{nombres}</small>
                     </div>
-                    <button disabled={!puede} onClick={() => void unirse(s.id)}>
+                    <button className={`btn sm${esActual ? ' yellow' : ''}`} disabled={!puede} onClick={() => void unirse(s.id)}>
                       {esActual ? 'Aquí' : lleno ? 'Llena' : 'Unirme'}
                     </button>
                   </div>
@@ -233,12 +293,16 @@ export default function JuegoPage() {
               <div className="mj-ayuda">Todavía no hay partidas terminadas. Sé el primero.</div>
             ) : (
               leaderboard.map((e) => (
-                <div key={e.jugadorId} className={`mj-jugador${e.jugadorId === jugadorId ? ' yo' : ''}`} style={{ borderColor: '#374151' }}>
+                <div
+                  key={e.jugadorId}
+                  className={`mj-jugador${e.jugadorId === jugadorId ? ' yo' : ''}`}
+                  style={{ borderColor: e.posicion === 1 ? 'var(--yellow)' : e.posicion <= 3 ? 'var(--brand)' : 'var(--line-strong)' }}
+                >
                   <span>
-                    #{e.posicion} {e.jugadorNombre}
+                    <b className="tnum">#{e.posicion}</b> {e.jugadorNombre}
                     {e.jugadorId === jugadorId ? ' (tú)' : ''}
                   </span>
-                  <span>{e.puntajeTotal} pts</span>
+                  <span className="tnum">{e.puntajeTotal} pts</span>
                 </div>
               ))
             )}
@@ -248,22 +312,22 @@ export default function JuegoPage() {
         <div>
           <div className="mj-panel">
             <div className="mj-fila">
-              <b>
-                {estado
-                  ? `${estado.salaCodigo} · ${textoEstado(estado.estado)} · ${estado.jugadores.length}/${estado.capacidad}`
-                  : 'Sin sala'}
+              <b className="grow">
+                {estado ? `${estado.salaCodigo} · ${textoEstado(estado.estado)} · ${estado.jugadores.length}/${estado.capacidad}` : 'Sin sala'}
               </b>
-              <button className="secundario" disabled={!salaActualId} onClick={() => void salirDeSala()}>
+              {enPartida && <span className="badge live tnum">{estado!.tiempoRestanteSegundos}s</span>}
+              <button className="btn ghost sm" disabled={!salaActualId} onClick={() => void salirDeSala()}>
                 Salir de la sala
               </button>
-              <span className="mj-ayuda">{enPartida ? `⏱ ${estado!.tiempoRestanteSegundos}s` : ''}</span>
             </div>
-            <TableroSnake
-              estado={estado}
-              jugadorId={jugadorId}
-              ultimoResultado={ultimoResultado}
-              textoVacio={salaActualId ? 'Entrando a la sala…' : 'Elige una sala para jugar'}
-            />
+            <div className="mj-board">
+              <TableroSnake
+                estado={estado}
+                jugadorId={jugadorId}
+                ultimoResultado={ultimoResultado}
+                textoVacio={salaActualId ? 'Entrando a la sala…' : 'Elige una sala para jugar'}
+              />
+            </div>
             <div className="mj-dpad" aria-label="Controles táctiles">
               <button className="up" onPointerDown={() => mover('ARRIBA')} disabled={!enPartida} aria-label="Arriba">
                 ▲
@@ -278,24 +342,17 @@ export default function JuegoPage() {
                 ▶
               </button>
             </div>
-            <div className="mj-ayuda" style={{ marginTop: 8 }}>
-              Cada tecla (<kbd>←</kbd>
-              <kbd>↑</kbd>
-              <kbd>→</kbd>
-              <kbd>↓</kbd> o <kbd>W</kbd>
-              <kbd>A</kbd>
-              <kbd>S</kbd>
-              <kbd>D</kbd>) mueve tu serpiente una celda; mantenla presionada para avanzar seguido. Si no tocas nada, tu
-              serpiente se queda quieta. Solo la ventana con el foco recibe las teclas. La partida empieza sola cuando la
-              sala está <b>llena</b>. Si tu cabeza toca un borde o cualquier cuerpo, mueres; gana la última serpiente en
-              pie.
+            <div className="mj-ayuda" style={{ marginTop: 10 }}>
+              Cada tecla (<kbd>←</kbd> <kbd>↑</kbd> <kbd>→</kbd> <kbd>↓</kbd> o <kbd>W</kbd> <kbd>A</kbd> <kbd>S</kbd> <kbd>D</kbd>) mueve tu
+              serpiente una celda; mantenla presionada para avanzar seguido. La partida empieza sola cuando la sala está <b>llena</b>.
+              Si tu cabeza toca un borde o cualquier cuerpo, mueres; gana la última serpiente en pie.
             </div>
           </div>
 
           <div className="mj-panel">
             <h2>Jugadores</h2>
             {!estado || estado.jugadores.length === 0 ? (
-              <div className="mj-ayuda">—</div>
+              <div className="mj-ayuda">Aún no hay nadie en tu sala.</div>
             ) : (
               [...estado.jugadores]
                 .sort((a, b) => b.puntaje - a.puntaje)
@@ -311,19 +368,20 @@ export default function JuegoPage() {
                         {j.jugadorId === jugadorId ? ' (tú)' : ''}
                         {j.conectado ? '' : ' 📴'}
                       </span>
-                      <span>{marca}</span>
+                      <span className="tnum">{marca}</span>
                     </div>
                   );
                 })
             )}
             {ultimoResultado && (
-              <div className="mj-ayuda" style={{ marginTop: 6 }}>
+              <div className="caption sm" style={{ marginTop: 10 }}>
                 {textoResultado(ultimoResultado)}
               </div>
             )}
           </div>
 
           <div className="mj-panel">
+            <h2>Bitácora</h2>
             <div className="mj-log">{log.join('\n')}</div>
           </div>
         </div>
