@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { CrearLugar } from '@/components/business/CrearLugar';
+import { CancelarReserva } from '@/components/CancelarReserva';
 import { AnimatedNumber } from '@/components/fx/AnimatedNumber';
 import { boom } from '@/components/fx/eggs';
 import { Icon } from '@/components/Icon';
@@ -12,7 +13,7 @@ import { config } from '@/lib/config';
 import { useNow, useRtEvent, useTopics } from '@/lib/hooks';
 import { useSession } from '@/lib/session';
 import { CATEGORY_LABEL, ZONES } from '@/lib/seed';
-import type { InvUpdatePayload, PlaceDetail, Promo, PromoWonPayload, Reservation, Slot } from '@/lib/types';
+import type { InvUpdatePayload, PlaceDetail, Promo, PromoWonPayload, Reservation, ReserveCancelledPayload, Slot } from '@/lib/types';
 
 const time = (ms: number) => new Date(ms).toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' });
 
@@ -46,6 +47,10 @@ function Panel({ placeId }: { placeId: string }) {
     if (e.payload.placeId !== placeId) return;
     setReservations((rs) => (rs.some((r) => r.id === e.payload.id) ? rs : [e.payload, ...rs]));
     boom('¡RESERVA!', window.innerWidth - 120, 140);
+  });
+  // Una reserva cancelada (por el cliente o desde aquí) desaparece en vivo.
+  useRtEvent<ReserveCancelledPayload>(['RESERVE.CANCELLED'], (e) => {
+    if (e.payload.placeId === placeId) setReservations((rs) => rs.filter((r) => r.id !== e.payload.id));
   });
   useRtEvent<InvUpdatePayload>(['INV.UPDATE'], (e) => {
     if (e.payload.placeId !== placeId) return;
@@ -111,7 +116,7 @@ function Panel({ placeId }: { placeId: string }) {
           <SlotEditor placeId={place.id} slots={place.slots} onReload={load} />
         </div>
         <div className="stack" style={{ gap: 16 }}>
-          <Reservations items={reservations} />
+          <Reservations items={reservations} onCancelada={(id) => setReservations((rs) => rs.filter((r) => r.id !== id))} />
           <EventForm placeId={place.id} events={place.events} onCreated={load} />
         </div>
       </div>
@@ -489,7 +494,7 @@ function EventForm({
 /* Reservas entrantes                                                  */
 /* ================================================================== */
 
-function Reservations({ items }: { items: Reservation[] }) {
+function Reservations({ items, onCancelada }: { items: Reservation[]; onCancelada: (id: string) => void }) {
   return (
     <section className="card">
       <h2>
@@ -509,6 +514,7 @@ function Reservations({ items }: { items: Reservation[] }) {
               </span>
               <span className="mono muted">{r.code}</span>
               <span className="muted small">{time(r.createdAt)}</span>
+              <CancelarReserva id={r.id} compacto onCancelada={() => onCancelada(r.id)} />
             </div>
           ))}
         </div>

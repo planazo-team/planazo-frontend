@@ -80,6 +80,7 @@ export const liveApi: Api = {
   },
   reserve: (input) => call('POST', '/api/reservations', input),
   myReservations: () => get('/api/reservations/mine', []),
+  cancelReservation: (id) => call('DELETE', `/api/reservations/${encodeURIComponent(id)}`),
 
   activePromos: (zone) => get(`/api/promos${qs({ zone })}`, []),
   claimPromo: (id) => call('POST', `/api/promos/${encodeURIComponent(id)}/claim`),

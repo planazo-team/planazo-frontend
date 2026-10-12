@@ -133,6 +133,8 @@ export type EventType =
   | 'PLACE.UPDATE'
   | 'INV.UPDATE'
   | 'RESERVE.OK'
+  // booking: una reserva se canceló (los cupos ya volvieron a la franja)
+  | 'RESERVE.CANCELLED'
   | 'PROMO.PUSH'
   | 'PROMO.WON'
   | 'PROMO.EXPIRED'
@@ -184,6 +186,14 @@ export interface PromoWonPayload {
   stock: number;
   winner: string;
   userId?: string;
+}
+
+export interface ReserveCancelledPayload {
+  id: string;
+  placeId: string;
+  slotId: string;
+  people: number;
+  userId: string;
 }
 
 export interface InvUpdatePayload {

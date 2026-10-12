@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { useCallback, useEffect, useState } from 'react';
+import { CancelarReserva } from '@/components/CancelarReserva';
 import { Icon, SpiderArt } from '@/components/Icon';
 import { PlaceLogo } from '@/components/Logo';
 import { api } from '@/lib/api';
@@ -29,7 +30,7 @@ export default function PlanesPage() {
   }, [load]);
 
   // Llega a `user:<id>` cuando una reserva propia se confirma o se gana un cupón.
-  useRtEvent(['RESERVE.OK', 'PROMO.WON'], () => load());
+  useRtEvent(['RESERVE.OK', 'RESERVE.CANCELLED', 'PROMO.WON'], () => load());
 
   return (
     <main className="content">
@@ -90,9 +91,12 @@ export default function PlanesPage() {
                   <span className="eyebrow">Código</span>
                   <span className="coupon-code">{r.code}</span>
                 </div>
-                <Link href={`/cliente/lugar/${r.placeId}`} className="btn ghost sm block" style={{ marginTop: 12 }}>
-                  Ver el lugar
-                </Link>
+                <div className="row between wrap" style={{ marginTop: 12 }}>
+                  <Link href={`/cliente/lugar/${r.placeId}`} className="btn ghost sm">
+                    Ver el lugar
+                  </Link>
+                  <CancelarReserva id={r.id} onCancelada={() => setReservations((rs) => rs.filter((x) => x.id !== r.id))} />
+                </div>
               </div>
             ))
           )}

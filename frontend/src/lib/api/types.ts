@@ -40,6 +40,8 @@ export interface Api {
   getPlace(id: string): Promise<PlaceDetail | null>;
   reserve(input: { slotId: string; people: number; version: number }): Promise<ApiResult<Reservation>>;
   myReservations(): Promise<Reservation[]>;
+  /** Cancela una reserva propia (o, desde el panel, una de su lugar). Los cupos vuelven en vivo. */
+  cancelReservation(id: string): Promise<ApiResult<Reservation>>;
 
   // promo
   activePromos(zone?: Zone): Promise<Promo[]>;

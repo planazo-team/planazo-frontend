@@ -6,6 +6,7 @@ import { Icon, type IconName } from './Icon';
 
 const ITEMS: Array<{ href: string; icon: IconName; label: string }> = [
   { href: '/cliente/mapa', icon: 'map', label: 'Mapa' },
+  { href: '/cliente/promos', icon: 'tag', label: 'Promos' },
   { href: '/cliente/agente', icon: 'sparkles', label: 'Agente' },
   { href: '/cliente/juego', icon: 'gamepad', label: 'Juego' },
   { href: '/cliente/planes', icon: 'ticket', label: 'Mis planes' },

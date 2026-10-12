@@ -27,6 +27,7 @@ export const mockApi: Api = {
   getPlace: async (id) => backend().getPlace(id),
   reserve: (input) => backend().reserve(me(), input),
   myReservations: async () => backend().myReservations(me().id),
+  cancelReservation: (id) => backend().cancelReservation(getSession(), id),
 
   activePromos: async (zone) => backend().activePromos(zone),
   claimPromo: (id) => backend().claim(me(), id),
