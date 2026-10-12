@@ -1,10 +1,23 @@
 # Planazo — estado de la aplicación
 
-Foto del sistema al **8 de octubre de 2026** (semana 3 del MVP de 8 semanas). Se actualiza con cada hito; el detalle de cada pieza está en [`contexto.md`](contexto.md) y en el README de cada repo.
+Foto del sistema al **12 de octubre de 2026** (semana 4 del MVP de 8 semanas). Se actualiza con cada hito; el detalle de cada pieza está en [`contexto.md`](contexto.md) y en el README de cada repo.
 
 ## Resumen
 
-Los cinco servicios y el frontend están en producción y probados de punta a punta. Los seis retos tienen su mecanismo desplegado. Faltan la persistencia en PostgreSQL de booking y promo, las pruebas de carga contra Railway y algunos cierres de producción en game y realtime.
+Los cinco servicios y el frontend están en producción y **los seis retos pasan contra producción** (`node planazo-infra/pruebas/produccion.mjs`: 19/19 el 12 de octubre). booking y promo ya guardan todo en PostgreSQL. Se entra solo con el nombre, un negocio puede crear su lugar desde la app y lanzar promociones *solo para ganadores* del minijuego. El frontend tiene un rediseño completo de estética cómic (Spider-Verse).
+
+### Novedades del 12 de octubre
+
+- **booking**: PostgreSQL (esquema `booking`), `UPDATE ... WHERE version = $v` + `CHECK (taken <= capacity)`; `POST /places` y `GET /places/owned`; publica `PLACE.CREATED`.
+- **promo**: PostgreSQL (esquema `promo`); reclamo en un solo Lua (stock, un cupón por persona, solo ganadores); escucha `GAME.PARTIDA_FINALIZADA` y publica `PROMO.UNLOCKED`.
+- **realtime**: arreglado RT-2 (tras `RESUME` el cliente no quedaba suscrito); ticks del juego efímeros (no se guardan); `user:<id>` privado; CI en verde.
+- **game**: CORS restringido, `dev-token` apagado (404), salas de duelo (V2): Duelo Zona G, Duelo Zona T y Tierra-616.
+- **api-gateway**: `POST /api/auth/login` (solo nombre) y `POST /api/auth/negocio`; agente con el SDK oficial y `claude-opus-5-5` (salida estructurada).
+- **frontend**: rediseño, login por nombre, asistente para crear el lugar, bonos de ganadores, arreglado el pop-up tapado por el mapa y la barra inferior translúcida.
+
+### Verificado en producción (12 de octubre)
+
+CC-3: 25 reservas simultáneas con la misma versión → 1 confirmada, 24 `VERSION_CONFLICT`, sin sobreventa. RT-1: `PLACE.UPDATE` en vivo. RT-2: `REPLAY` en orden, sin duplicados, y siguen llegando eventos tras reanudar. CC-1: 60 personas contra stock 5 → 5 cupones. Un cupón por persona. CC-2: partida real de dos bots en una sala de duelo → ganador registrado; solo él reclama el bono de ganadores. Agente: ruta de 3 paradas.
 
 ## Producción
 
@@ -44,13 +57,10 @@ Proyecto de Railway: `zesty-freedom` (workspace de Camilo, plan Hobby). Secretos
 
 ## Pendientes, por prioridad
 
-1. **PostgreSQL en booking y promo.** Hoy todo vive en memoria; cada redespliegue reinicia reservas y cupones. Fabián.
-2. **k6 contra Railway**: CC-1, CC-3 y RT-2 ya existen en `planazo-infra/k6`; CC-2 hay que reescribirlo al protocolo STOMP de game. Juan Diego y Diego.
-3. **Volumen en realtime**: game publica `GAME.STATE_UPDATE` 20 veces por segundo por sala y realtime lo persiste. Decidir si se difunde sin guardar. Camilo y Diego.
-4. **Cierres de producción en game**: restringir CORS y apagar `POST /api/v1/auth/dev-token`. Diego.
-5. **Lint de realtime** (cuatro variables sin usar) para que el CI vuelva a verde. Camilo.
-6. **`ANTHROPIC_API_KEY`** en el gateway para que el agente deje de responder plantilla. Juan Diego.
-7. Mergear el PR #1 de `.github` (necesita una aprobación) y cerrar los PRs de Dependabot obsoletos en `planazo-game`.
+1. **`ANTHROPIC_API_KEY`** en el gateway (Railway) para que el agente use Claude; sin ella responde con una plantilla por palabras clave.
+2. **k6 contra Railway** para CC-2 con el protocolo STOMP (la prueba de Node ya cubre el flujo; falta la versión de carga).
+3. PRs de Dependabot abiertos en varios repos y `planazo-game#11` (probablemente obsoleto: game ahora es Java).
+4. Mergear el PR #1 de `.github` (necesita una aprobación).
 
 ## Cómo retomar
 
