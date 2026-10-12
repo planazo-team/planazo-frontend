@@ -79,6 +79,8 @@ body {
 
 html {
   -webkit-text-size-adjust: 100%;
+  /* Nada decorativo (burbujas ¡POW!, telarañas) puede ensanchar la página en el celular. */
+  overflow-x: clip;
 }
 
 body {

@@ -90,7 +90,7 @@ export default function LoginPage() {
           promociones relámpago, gana bonos en el minijuego o pídele un plan al agente.
         </p>
         <div className="collage" aria-hidden>
-          <span className="boom boom-float" style={{ position: 'absolute', right: -6, top: -26, zIndex: 2, fontSize: 24, minWidth: 110, minHeight: 80 }}>
+          <span className="boom boom-float" style={{ position: 'absolute', right: 8, top: -26, zIndex: 2, fontSize: 24, minWidth: 110, minHeight: 80 }}>
             ¡POW!
           </span>
           {COLLAGE.map((c, i) => (
