@@ -20,6 +20,9 @@ const ROUND_MS = 90_000;
 const FOOD_COUNT = 4;
 const COLORS = ['#2E9A6B', '#E0703D', '#7B5CD6', '#C4386A', '#3F7CB4', '#D69A1F'];
 const BOT_NAMES = ['Camilo', 'Vale', 'Sara', 'Nico', 'Luli'];
+/** Como planazo-game: una serpiente en pausa aguanta hasta 60 s y, al volver, espera 4 pasos antes de seguir. */
+const PAUSA_MAX_MS = 60_000;
+const PASOS_DE_RESPIRO = 4;
 
 const DIRS: Record<Dir, Point> = { up: { x: 0, y: -1 }, down: { x: 0, y: 1 }, left: { x: -1, y: 0 }, right: { x: 1, y: 0 } };
 const OPPOSITE: Record<Dir, Dir> = { up: 'down', down: 'up', left: 'right', right: 'left' };
@@ -45,6 +48,10 @@ interface Sim {
   reachedAt: Map<string, number>;
   listeners: Set<(s: GameState) => void>;
   timer?: ReturnType<typeof setInterval>;
+  /** Jugadores que salieron de la pantalla → desde cuándo. Su serpiente se queda quieta. */
+  pausas: Map<string, number>;
+  /** Pasos que le faltan a cada serpiente recién vuelta de una pausa antes de moverse. */
+  respiro: Map<string, number>;
   /** Salas fijas del minijuego: nombre visible, cupo y cuenta regresiva de arranque. */
   nombre?: string;
   capacidad?: number;
@@ -129,6 +136,8 @@ class MockGame {
     if (!sim) return;
     sim.players = sim.players.filter((p) => p.id !== playerId);
     sim.snakes.delete(playerId);
+    sim.pausas.delete(playerId);
+    sim.respiro.delete(playerId);
     if (sim.players.length < (sim.capacidad ?? 2)) {
       clearTimeout(sim.arranque);
       sim.cuentaRegresivaHasta = undefined;
@@ -159,6 +168,23 @@ class MockGame {
     const sn = sim?.snakes.get(playerId);
     const dir = MockGame.DIRECCION_A_DIR[direccion];
     if (sn && dir !== OPPOSITE[sn.dir]) sn.next = dir;
+  }
+
+  /** El jugador salió de la pantalla: su serpiente se queda quieta donde va. */
+  pausarSala(salaId: string, playerId: string) {
+    const sim = this.rooms.get(salaId);
+    if (!sim?.players.some((p) => p.id === playerId) || sim.pausas.has(playerId)) return;
+    sim.pausas.set(playerId, Date.now());
+    sim.respiro.delete(playerId);
+    this.broadcast(sim);
+  }
+
+  /** Volvió: sigue donde iba, tras un respiro corto para ubicarse. */
+  reanudarSala(salaId: string, playerId: string) {
+    const sim = this.rooms.get(salaId);
+    if (!sim?.pausas.delete(playerId)) return;
+    if (sim.status === 'playing') sim.respiro.set(playerId, PASOS_DE_RESPIRO);
+    this.broadcast(sim);
   }
 
   leaderboardGlobal(limite: number): EntradaLeaderboard[] {
@@ -210,9 +236,10 @@ class MockGame {
           jugadorNombre: p.name,
           cuerpo: s.snakes[p.id] ?? [],
           direccion: MockGame.DIR_A_DIRECCION[sn?.dir ?? 'right'],
-          estado: p.alive ? ('VIVA' as const) : ('ELIMINADA' as const),
+          estado: !p.alive ? ('ELIMINADA' as const) : sim.pausas.has(p.id) ? ('DESCONECTADA_CONGELADA' as const) : ('VIVA' as const),
           puntaje: p.score,
           conectado: true,
+          pausado: sim.pausas.has(p.id),
         };
       }),
       comida: s.food[0] ?? null,
@@ -288,6 +315,7 @@ class MockGame {
     sim.winnerId = undefined;
     sim.snakes.clear();
     sim.reachedAt.clear();
+    sim.respiro.clear();
     sim.food = [];
     sim.players.forEach((p, i) => {
       p.alive = true;
@@ -307,6 +335,11 @@ class MockGame {
 
   private step(sim: Sim) {
     sim.tick++;
+    // Pausa demasiado larga: la serpiente sale del juego, como en planazo-game.
+    for (const [id, desde] of sim.pausas) {
+      const p = sim.players.find((x) => x.id === id);
+      if (p?.alive && Date.now() - desde >= PAUSA_MAX_MS) p.alive = false;
+    }
     if (sim.tick % MOVE_EVERY === 0) this.advance(sim);
 
     const alive = sim.players.filter((p) => p.alive).length;
@@ -318,9 +351,15 @@ class MockGame {
     for (const p of sim.players) if (p.alive && p.isBot) this.think(sim, p.id);
 
     // Primero todas las cabezas nuevas, luego colisiones: el orden de jugadores no da ventaja.
+    // Las pausadas (y las recién vueltas, durante su respiro) no se mueven, pero estorban.
     const heads = new Map<string, Point>();
     for (const p of sim.players) {
-      if (!p.alive) continue;
+      if (!p.alive || sim.pausas.has(p.id)) continue;
+      const respiro = sim.respiro.get(p.id) ?? 0;
+      if (respiro > 0) {
+        sim.respiro.set(p.id, respiro - 1);
+        continue;
+      }
       const sn = sim.snakes.get(p.id)!;
       sn.dir = sn.next;
       const h = sn.body[0];
@@ -331,7 +370,8 @@ class MockGame {
     for (const p of sim.players) {
       if (!p.alive) continue;
       const body = sim.snakes.get(p.id)!.body;
-      body.slice(0, -1).forEach((c) => occupied.add(`${c.x},${c.y}`));
+      // La cola solo queda libre si esa serpiente avanza en este paso.
+      (heads.has(p.id) ? body.slice(0, -1) : body).forEach((c) => occupied.add(`${c.x},${c.y}`));
     }
 
     const dead = new Set<string>();
@@ -432,6 +472,8 @@ class MockGame {
       startedAt: 0,
       reachedAt: new Map(),
       listeners: new Set(),
+      pausas: new Map(),
+      respiro: new Map(),
     };
   }
 

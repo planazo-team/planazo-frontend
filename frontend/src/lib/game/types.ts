@@ -37,6 +37,8 @@ export interface JugadorEnSala {
   estado: EstadoSerpiente;
   puntaje: number;
   conectado: boolean;
+  /** Salió de la pantalla: su serpiente está quieta esperándolo (máx. 60 s). Ausente en versiones viejas de game. */
+  pausado?: boolean;
 }
 
 export interface PuntajeJugador {
@@ -108,5 +110,9 @@ export interface GameClient {
   suscribirSala(salaId: string): void;
   desuscribirSala(): void;
   mover(direccion: Direccion): void;
+  /** El jugador salió de la pantalla: su serpiente se queda quieta donde va. */
+  pausar(): void;
+  /** Volvió: su serpiente sigue donde iba. */
+  reanudar(): void;
   cerrar(): void;
 }
