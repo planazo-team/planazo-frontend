@@ -87,12 +87,12 @@ export function logoOf(p: Pick<Place, 'id' | 'name' | 'category'>): LogoSpec {
 
 /** Galería de portadas que puede elegir un negocio nuevo, por categoría. */
 export const COVERS: Record<Category, string[]> = {
-  restaurante: ['restaurante-1', 'restaurante-2', 'restaurante-3', 'restaurante-4'],
-  bar: ['bar-1', 'bar-2', 'bar-3', 'bar-4'],
+  restaurante: ['restaurante-1', 'restaurante-2', 'restaurante-3', 'restaurante-4', 'cafe-1'],
+  bar: ['bar-1', 'bar-2', 'bar-3', 'bar-4', 'bar-5', 'bar-6'],
   discoteca: ['discoteca-1', 'discoteca-2', 'discoteca-3'],
-  evento: ['evento-1', 'evento-2', 'evento-3'],
+  evento: ['evento-1', 'evento-2', 'evento-3', 'parche-1'],
   hotel: ['hotel-1', 'hotel-2'],
-  'aire-libre': ['aire-libre-1', 'aire-libre-2'],
+  'aire-libre': ['aire-libre-1', 'aire-libre-2', 'parque-1', 'parque-2'],
 };
 
 const TODAS = new Set(Object.values(COVERS).flat());
