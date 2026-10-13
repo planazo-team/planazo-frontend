@@ -1,6 +1,5 @@
 'use client';
 
-import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { AuthGate } from '@/components/AuthGate';
 import { BottomNav, SideRail } from '@/components/BottomNav';
@@ -14,7 +13,6 @@ import { useRtEvent, useTopics } from '@/lib/hooks';
 import { setSession, type SessionUser } from '@/lib/session';
 
 function ClientShell({ user, children }: { user: SessionUser; children: React.ReactNode }) {
-  const router = useRouter();
   // El piloto cubre dos zonas: el cliente las sigue ambas, más sus eventos personales.
   useTopics(['zone:zona-g', 'zone:zona-t', `user:${user.id}`]);
 
@@ -39,7 +37,9 @@ function ClientShell({ user, children }: { user: SessionUser; children: React.Re
             // Primero se sale de la sala del Snake (si estaba en una), después de la sesión.
             await salirDeSalaGuardada();
             setSession(null);
-            router.replace('/');
+            // Recarga completa: la conexión en vivo y todo lo que estaba en memoria
+            // eran del usuario anterior y no deben pasar al siguiente.
+            window.location.replace('/');
           }}
           title={`Cerrar la sesión de ${user.name}`}
           aria-label="Salir"
