@@ -111,11 +111,11 @@ export function TableroSnake({
     if (estado.estado === 'CUENTA_REGRESIVA') {
       rotulo(
         String(estado.segundosCuentaRegresiva || '¡Ya!'),
-        ultimoResultado ? `${textoResultado(ultimoResultado)} · revancha en…` : '¡Sala llena! Prepárate…',
+        '¡Sala llena! Prepárate…',
         true,
       );
     } else if (ultimoResultado) {
-      rotulo(textoResultado(ultimoResultado), faltan > 0 ? `Esperando ${faltan} jugador(es) para la revancha` : '');
+      rotulo(textoResultado(ultimoResultado), 'Partida terminada · elige una sala para jugar otra');
     } else if (estado.estado === 'ESPERANDO_JUGADORES') {
       rotulo(
         `Esperando jugadores ${estado.jugadores.length}/${estado.capacidad}`,
