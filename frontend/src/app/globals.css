@@ -97,7 +97,9 @@ body {
   line-height: 1.5;
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
-  overflow-x: hidden;
+  /* clip y no hidden: hidden convierte a body en contenedor de scroll y rompe
+     los position: sticky (la barra de arriba y el mapa al lado de la lista). */
+  overflow-x: clip;
 }
 
 /* trama de puntos muy suave sobre todo el fondo: papel de cómic */
@@ -2548,6 +2550,41 @@ em.serif,
     order: 2;
   }
 }
+/* Fin de partida: a cada jugador, su resultado. */
+.mj-fin {
+  display: grid;
+  gap: 6px;
+  padding: 14px 16px;
+  margin-bottom: 12px;
+  border-radius: var(--radius-sm);
+  border: 2px solid var(--outline);
+  box-shadow: var(--hard);
+  animation: pop-in 0.45s var(--ease-pop) both;
+}
+.mj-fin b {
+  font-family: var(--comic);
+  font-weight: 400;
+  font-size: 30px;
+  letter-spacing: 0.03em;
+  line-height: 1;
+}
+.mj-fin.gane {
+  background: linear-gradient(135deg, var(--yellow), #ffc21a);
+  color: var(--yellow-ink);
+}
+.mj-fin.perdi {
+  background: linear-gradient(135deg, var(--danger-soft), var(--panel));
+  border-color: var(--spidey);
+}
+.mj-fin .nota {
+  font-size: 13px;
+  opacity: 0.85;
+}
+.mj-fin .btn {
+  justify-self: start;
+  margin-top: 4px;
+}
+
 .mj-panel {
   background: linear-gradient(180deg, var(--panel-2), var(--panel));
   border: 1.5px solid var(--line-strong);

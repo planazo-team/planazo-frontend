@@ -41,6 +41,9 @@ export interface PuntajeJugador {
   jugadorId: string;
   jugadorNombre: string;
   puntaje: number;
+  /** 1 = ganador. */
+  posicionFinal?: number;
+  sobrevivio?: boolean;
 }
 
 /** Lo que queda al terminar una partida (SNK-10). */

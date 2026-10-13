@@ -63,6 +63,8 @@ export default function JuegoPage() {
   const [log, setLog] = useState<string[]>(['Listo. Elige una sala para jugar.']);
   const [premios, setPremios] = useState<Promo[]>([]);
   const celebrada = useRef<string | null>(null);
+  /** Resultado de MI última partida: la partida terminó y ya no estoy en la sala. */
+  const [fin, setFin] = useState<ResultadoPartida | null>(null);
 
   const jugadorIdRef = useRef(jugadorId);
   jugadorIdRef.current = jugadorId;
@@ -94,12 +96,19 @@ export default function JuegoPage() {
       onEstado: (e) => {
         setEstado(e);
         if (e.resultado) {
-          // ¡Ganaste! Se celebra una sola vez por partida.
+          // Se resuelve una sola vez por partida: celebrar o avisar, y salir.
           const clave = `${e.salaId}:${e.resultado.finalizadaEn}`;
-          if (e.resultado.ganadorJugadorId === jugadorIdRef.current && celebrada.current !== clave) {
+          const jugue = e.resultado.puntajes.some((p) => p.jugadorId === jugadorIdRef.current);
+          if (jugue && celebrada.current !== clave) {
             celebrada.current = clave;
-            boom('¡SPIDER-CAMPEÓN!', window.innerWidth / 2, window.innerHeight * 0.35, true);
-            confeti(window.innerWidth / 2, window.innerHeight * 0.35, 70);
+            const gane = e.resultado.ganadorJugadorId === jugadorIdRef.current;
+            if (gane) {
+              boom('¡SPIDER-CAMPEÓN!', window.innerWidth / 2, window.innerHeight * 0.35, true);
+              confeti(window.innerWidth / 2, window.innerHeight * 0.35, 70);
+            } else {
+              boom('¡PERDISTE!', window.innerWidth / 2, window.innerHeight * 0.35);
+            }
+            terminarPartida(e.resultado);
           }
           setUltimoResultado((prev) => {
             if (prev?.finalizadaEn !== e.resultado?.finalizadaEn) refrescarLeaderboard();
@@ -135,6 +144,29 @@ export default function JuegoPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [me?.id]);
 
+  /*
+   * La partida terminó: el servidor ya vació la sala. Se deja de escuchar esa
+   * sala (el tablero se queda con la jugada final) y se olvida, para que al
+   * recargar no se vuelva a entrar. Para seguir jugando hay que elegir sala.
+   */
+  function terminarPartida(r: ResultadoPartida) {
+    client.current?.desuscribirSala();
+    setSalaActualId(null);
+    setFin(r);
+    try {
+      sessionStorage.removeItem(CLAVE_SALA);
+    } catch {
+      /* sin almacenamiento */
+    }
+    const yo = r.puntajes.find((p) => p.jugadorId === jugadorIdRef.current);
+    escribir(
+      r.ganadorJugadorId === jugadorIdRef.current
+        ? `¡Ganaste en ${r.salaCodigo}! La partida terminó.`
+        : `Perdiste en ${r.salaCodigo}${yo?.posicionFinal ? ` (puesto ${yo.posicionFinal})` : ''}. Ganó ${r.ganadorJugadorNombre ?? 'nadie'}.`,
+    );
+    client.current?.listarSalas().then(setSalas);
+  }
+
   /* ---------- salas ---------- */
   async function unirse(salaId: string, esReconexion = false) {
     const c = client.current;
@@ -153,6 +185,7 @@ export default function JuegoPage() {
     }
     setSalaActualId(salaId);
     setUltimoResultado(null);
+    setFin(null);
     try {
       sessionStorage.setItem(CLAVE_SALA, salaId);
     } catch {
@@ -332,6 +365,7 @@ export default function JuegoPage() {
                 Salir de la sala
               </button>
             </div>
+            {fin && <FinDePartida r={fin} jugadorId={jugadorId} hayBonos={premios.length > 0} onOtra={() => { setFin(null); setEstado(null); setUltimoResultado(null); }} />}
             <div className="mj-board">
               <TableroSnake
                 estado={estado}
@@ -399,5 +433,31 @@ export default function JuegoPage() {
         </div>
       </div>
     </main>
+  );
+}
+
+/** Lo que ve cada jugador cuando su partida termina: ganó o perdió, y qué sigue. */
+function FinDePartida({ r, jugadorId, hayBonos, onOtra }: { r: ResultadoPartida; jugadorId: string; hayBonos: boolean; onOtra: () => void }) {
+  const gane = r.ganadorJugadorId === jugadorId;
+  const yo = r.puntajes.find((p) => p.jugadorId === jugadorId);
+  return (
+    <div className={`mj-fin ${gane ? 'gane' : 'perdi'}`} role="status">
+      <b>{gane ? '¡Ganaste! 🏆' : 'Perdiste 💥'}</b>
+      <span>
+        {gane
+          ? `Primer puesto en ${r.salaCodigo}${yo ? ` con ${yo.puntaje} pts` : ''}.`
+          : `Ganó ${r.ganadorJugadorNombre ?? 'nadie'}.${yo?.posicionFinal ? ` Quedaste en el puesto ${yo.posicionFinal} de ${r.puntajes.length}.` : ''}`}
+      </span>
+      <span className="nota">
+        {gane && hayBonos
+          ? 'Si había un bono para ganadores, te llega el aviso: reclámalo en Promos. Cada bono se gana una sola vez.'
+          : !gane && hayBonos
+            ? 'Todavía hay bonos en juego: entra a otra sala y vuelve a intentarlo.'
+            : 'La partida terminó. Para seguir jugando, entra a otra sala.'}
+      </span>
+      <button className="btn sm" onClick={onOtra}>
+        Elegir otra sala
+      </button>
+    </div>
   );
 }
