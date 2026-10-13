@@ -76,7 +76,81 @@ const RAW: SeedPlace[] = [
     description: 'Hotel de negocios a una cuadra de la Zona T.' },
   { id: 'p12', name: 'Parque El Virrey', category: 'aire-libre', zone: 'zona-t', lat: 4.6721, lng: -74.0556, priceLevel: 0,
     description: 'Parque lineal para caminar, correr o hacer picnic. Gratis y sin reserva.' },
+
+  // ---------------- Parques públicos (gratis, sin reserva) ----------------
+  { id: 'p13', name: 'Parque de la 93', category: 'aire-libre', zone: 'zona-t', lat: 4.6766, lng: -74.0485, priceLevel: 0, cover: 'parque-1',
+    description: 'Plaza verde rodeada de restaurantes. Buen punto para arrancar con un café o un helado. Gratis.' },
+  { id: 'p14', name: 'Parque Japón', category: 'aire-libre', zone: 'zona-t', lat: 4.6713, lng: -74.0507, priceLevel: 0, cover: 'parque-2',
+    description: 'Parque de barrio tranquilo en la 87, con árboles y bancas. Ideal para un picnic o leer un rato. Gratis.' },
+  { id: 'p15', name: 'Sendero Quebrada La Vieja', category: 'aire-libre', zone: 'zona-g', lat: 4.6587, lng: -74.0436, priceLevel: 0, cover: 'parque-2',
+    description: 'Caminata por los cerros orientales con vista a toda la ciudad. Solo en la mañana y con inscripción previa. Gratis.' },
+  { id: 'p16', name: 'Parque de los Hippies', category: 'aire-libre', zone: 'zona-g', lat: 4.6464, lng: -74.0627, priceLevel: 0, cover: 'aire-libre-2',
+    description: 'El parque bohemio de la Séptima con 60: artistas, malabares, músicos y gente parchando en el pasto. Gratis.' },
+  { id: 'p17', name: 'Parque El Chicó', category: 'aire-libre', zone: 'zona-t', lat: 4.6779, lng: -74.0438, priceLevel: 0, cover: 'parque-1',
+    description: 'Jardines y museo en una casona colonial. Perfecto para una tarde tranquila antes de salir. Gratis.' },
+  { id: 'p18', name: 'Ciclovía de la Séptima', category: 'aire-libre', zone: 'zona-g', lat: 4.6602, lng: -74.0545, priceLevel: 0, cover: 'aire-libre-1',
+    description: 'Domingos y festivos de 7 a 2 la Séptima es para bicis, patines y trotar. Jugo en la esquina incluido. Gratis.' },
+
+  // ---------------- Spots para parchar ----------------
+  { id: 'p19', name: 'Tejo El Turmequé', category: 'evento', zone: 'zona-g', lat: 4.6508, lng: -74.0601, priceLevel: 1, cover: 'parche-1',
+    description: 'Canchas de tejo con mechas, cerveza fría y picada. El plan más colombiano para ir en parche.',
+    slots: [['18:00', 24, 9], ['20:00', 24, 17]],
+    events: [['Torneo relámpago de tejo', '20:00', 32, 21]] },
+  { id: 'p20', name: 'La Azotea de la 70', category: 'bar', zone: 'zona-g', lat: 4.6543, lng: -74.0592, priceLevel: 2, cover: 'bar-6',
+    description: 'Rooftop con fogata, DJ de vinilos y vista a los cerros. Se arma desde las ocho.',
+    slots: [['20:00', 30, 14], ['22:00', 30, 22]] },
+  { id: 'p21', name: 'Cervecería Los Cerros', category: 'bar', zone: 'zona-g', lat: 4.6566, lng: -74.0544, priceLevel: 2, cover: 'bar-1',
+    description: 'Cerveza artesanal de la casa y mesas largas para ir en grupo grande.',
+    slots: [['18:00', 40, 12], ['21:00', 40, 26]] },
+  { id: 'p22', name: 'La Ficha · juegos de mesa', category: 'bar', zone: 'zona-g', lat: 4.6531, lng: -74.0575, priceLevel: 1, cover: 'cafe-1',
+    description: 'Más de 300 juegos de mesa, café y cerveza. Para parchar sin tener que gritar.',
+    slots: [['17:00', 24, 8], ['20:00', 24, 15]] },
+  { id: 'p23', name: 'Karaoke El Gritón', category: 'bar', zone: 'zona-t', lat: 4.6669, lng: -74.0519, priceLevel: 2, cover: 'bar-5',
+    description: 'Cabinas privadas y tarima abierta. Las canciones de despecho son obligatorias.',
+    slots: [['21:00', 20, 9], ['23:00', 20, 14]] },
+  { id: 'p24', name: 'Salsa Caleña 82', category: 'discoteca', zone: 'zona-t', lat: 4.6664, lng: -74.0549, priceLevel: 2, cover: 'discoteca-1',
+    description: 'Salsa en vivo y clase gratis a las nueve. Aquí nadie se queda sentado.',
+    slots: [['21:00', 60, 24], ['23:00', 60, 41]],
+    events: [['Clase de salsa caleña', '21:00', 30, 18]] },
+  { id: 'p25', name: 'Food trucks de la 85', category: 'restaurante', zone: 'zona-t', lat: 4.6689, lng: -74.0528, priceLevel: 1, cover: 'restaurante-2',
+    description: 'Seis food trucks con mesas al aire libre: hamburguesas, tacos y arepas para todos los gustos.',
+    slots: [['18:00', 40, 15], ['20:00', 40, 28]] },
+  { id: 'p26', name: 'Brunch Club 70', category: 'restaurante', zone: 'zona-g', lat: 4.6537, lng: -74.0563, priceLevel: 2, cover: 'restaurante-3',
+    description: 'Brunch todo el día, waffles y jugos. El plan de domingo después de la rumba.',
+    slots: [['10:00', 20, 12], ['12:00', 20, 15]] },
+  { id: 'p27', name: 'Café Lectura Quinta', category: 'restaurante', zone: 'zona-g', lat: 4.6585, lng: -74.0567, priceLevel: 1, cover: 'restaurante-4',
+    description: 'Café con biblioteca y patio interior. Tranquilo para una primera cita.',
+    slots: [['16:00', 16, 4], ['18:00', 16, 9]] },
+  { id: 'p28', name: 'Cine bajo las estrellas', category: 'evento', zone: 'zona-t', lat: 4.6762, lng: -74.0491, priceLevel: 1, cover: 'evento-2',
+    description: 'Pantalla gigante y cojines en el pasto. Lleva cobija; las crispetas van por la casa.',
+    events: [['Película al aire libre', '19:30', 80, 47]],
+    slots: [['19:30', 80, 47]] },
+  { id: 'p29', name: 'Arepas La Esquina', category: 'restaurante', zone: 'zona-g', lat: 4.6501, lng: -74.0612, priceLevel: 1, cover: 'restaurante-1',
+    description: 'Arepas rellenas hasta las tres de la mañana. El after perfecto después de bailar.',
+    slots: [['22:00', 20, 6], ['00:00', 20, 11]] },
 ];
+
+/**
+ * Más eventos de la noche, repartidos por los lugares. Van aparte para no
+ * cambiar los ids de los que ya existían (`<lugar>-e<n>` sigue la numeración).
+ */
+const MAS_EVENTOS: Record<string, Array<[title: string, startsAt: string, capacity: number, taken: number]>> = {
+  p2: [['Cena maridaje de vinos', '20:00', 16, 13]],
+  p3: [['Concurso de dumplings picantes', '19:30', 40, 25]],
+  p4: [['Cata de café de origen', '17:00', 12, 7]],
+  p5: [['Atardecer con DJ de house', '18:00', 30, 12]],
+  p7: [['Noche de mezcal y cócteles de autor', '21:00', 16, 9]],
+  p9: [['Noche de reguetón old school', '23:00', 120, 88], ['After de techno', '01:00', 80, 30]],
+  p12: [['Yoga al atardecer', '17:30', 40, 18]],
+  p13: [['Feria de emprendedores', '15:00', 200, 90]],
+  p16: [['Jam session en el pasto', '16:00', 60, 22]],
+  p17: [['Concierto de cámara en el jardín', '16:00', 80, 41]],
+  p20: [['Vinilos y fogata', '21:00', 30, 17]],
+  p21: [['Trivia de cultura pop', '20:00', 48, 31]],
+  p22: [['Torneo de Catan', '18:00', 24, 16]],
+  p23: [['Batalla de despecho', '22:00', 40, 27]],
+  p25: [['Noche de tacos y mariachi', '20:00', 60, 34]],
+};
 
 export interface SeedData {
   places: Omit<Place, 'freeSeats'>[];
@@ -90,7 +164,8 @@ export function buildSeed(): SeedData {
   const slots: Slot[] = [];
   const events: PlaceEvent[] = [];
   for (const p of RAW) {
-    const { slots: s = [], events: e = [], ...place } = p;
+    const { slots: s = [], events: propios = [], ...place } = p;
+    const e = [...propios, ...(MAS_EVENTOS[p.id] ?? [])];
     places.push({ ...place });
     s.forEach(([startsAt, capacity, taken], i) =>
       slots.push({ id: `${p.id}-s${i + 1}`, placeId: p.id, startsAt, capacity, taken, version: 1 }),
