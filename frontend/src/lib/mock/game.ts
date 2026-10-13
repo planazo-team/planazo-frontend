@@ -101,6 +101,7 @@ class MockGame {
       cantidadJugadores: sim.players.length,
       estado: this.estadoSala(sim),
       nombresJugadores: sim.players.map((p) => p.name),
+      idsJugadores: sim.players.map((p) => p.id),
     };
   }
 
