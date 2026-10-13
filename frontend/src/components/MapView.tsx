@@ -5,7 +5,7 @@ import L from 'leaflet';
 import Link from 'next/link';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { MapContainer, Marker, Popup, TileLayer, Tooltip, useMap } from 'react-leaflet';
+import { Circle, MapContainer, Marker, Popup, TileLayer, Tooltip, useMap } from 'react-leaflet';
 import { coverOf } from '@/lib/brand';
 import { CATEGORY_LABEL, MAP_CENTER, ZONES } from '@/lib/seed';
 import type { Place } from '@/lib/types';
@@ -72,6 +72,92 @@ function RuedaAlEnfocar() {
     };
   }, [map]);
   return null;
+}
+
+/** El punto azul de «aquí estás». */
+const iconoYo = L.divIcon({ className: '', html: '<div class="yo-punto"><span></span></div>', iconSize: [22, 22], iconAnchor: [11, 11] });
+
+type EstadoUbicacion = 'buscando' | 'ok' | 'bloqueada' | 'no-disponible';
+
+/**
+ * Tu ubicación en el mapa, en vivo: un punto azul que se mueve contigo
+ * (watchPosition) con su círculo de precisión. El botón centra el mapa en ti.
+ * No sale del navegador: Planazo no la guarda ni la envía a ningún servicio.
+ */
+function MiUbicacion() {
+  const map = useMap();
+  const [pos, setPos] = useState<{ lat: number; lng: number; acc: number } | null>(null);
+  const [estado, setEstado] = useState<EstadoUbicacion>('buscando');
+  const boton = useRef<HTMLButtonElement>(null);
+  const centrarAlLlegar = useRef(false);
+
+  useEffect(() => {
+    if (!('geolocation' in navigator)) {
+      setEstado('no-disponible');
+      return;
+    }
+    const id = navigator.geolocation.watchPosition(
+      (p) => {
+        const nueva = { lat: p.coords.latitude, lng: p.coords.longitude, acc: p.coords.accuracy };
+        setPos(nueva);
+        setEstado('ok');
+        if (centrarAlLlegar.current) {
+          centrarAlLlegar.current = false;
+          map.flyTo([nueva.lat, nueva.lng], Math.max(map.getZoom(), 16), { duration: 0.8 });
+        }
+      },
+      (err) => setEstado(err.code === err.PERMISSION_DENIED ? 'bloqueada' : 'no-disponible'),
+      { enableHighAccuracy: true, maximumAge: 5000, timeout: 20000 },
+    );
+    return () => navigator.geolocation.clearWatch(id);
+  }, [map]);
+
+  // Los clics en el botón no deben mover ni hacer zoom en el mapa.
+  useEffect(() => {
+    if (boton.current) L.DomEvent.disableClickPropagation(boton.current);
+  }, []);
+
+  const centrar = () => {
+    if (pos) {
+      map.flyTo([pos.lat, pos.lng], Math.max(map.getZoom(), 16), { duration: 0.8 });
+    } else if (estado === 'bloqueada') {
+      toastSuelto('Tu navegador bloqueó la ubicación. Actívala en el candado de la barra de direcciones.');
+    } else if (estado === 'no-disponible') {
+      toastSuelto('No pudimos obtener tu ubicación. Revisa que el GPS esté encendido.');
+    } else {
+      centrarAlLlegar.current = true;
+      toastSuelto('Buscando tu ubicación…');
+    }
+  };
+
+  const titulo =
+    estado === 'ok' ? 'Centrar en mi ubicación' : estado === 'bloqueada' ? 'Ubicación bloqueada' : estado === 'no-disponible' ? 'Ubicación no disponible' : 'Buscando tu ubicación…';
+
+  return (
+    <>
+      {pos && (
+        <>
+          <Circle
+            center={[pos.lat, pos.lng]}
+            radius={Math.min(pos.acc, 500)}
+            pathOptions={{ color: '#2f6bff', weight: 1, fillColor: '#2f6bff', fillOpacity: 0.12 }}
+            interactive={false}
+          />
+          <Marker position={[pos.lat, pos.lng]} icon={iconoYo} zIndexOffset={1000} keyboard={false}>
+            <Tooltip direction="top" offset={[0, -12]}>
+              Estás aquí
+            </Tooltip>
+          </Marker>
+        </>
+      )}
+      <button ref={boton} type="button" className={`yo-btn ${estado}`} onClick={centrar} title={titulo} aria-label={titulo}>
+        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" aria-hidden="true">
+          <circle cx="12" cy="12" r="4" />
+          <path d="M12 2v3M12 19v3M2 12h3M19 12h3" />
+        </svg>
+      </button>
+    </>
+  );
 }
 
 /** Easter egg: de vez en cuando una araña cruza el mapa. Si la tocas… */
@@ -167,6 +253,7 @@ export default function MapView({
         />
         <FlyTo place={selected} />
         <RuedaAlEnfocar />
+        <MiUbicacion />
         {places.map((p, i) => (
           <Marker
             key={p.id}
