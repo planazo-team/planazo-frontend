@@ -1291,6 +1291,55 @@ em.serif,
   height: 100%;
   min-height: 420px;
 }
+/* Tu ubicación: punto azul que late y botón para centrar el mapa en ti. */
+.yo-punto {
+  position: relative;
+  width: 22px;
+  height: 22px;
+}
+.yo-punto span {
+  position: absolute;
+  inset: 3px;
+  border-radius: 50%;
+  background: var(--spidey-blue);
+  border: 3px solid #fff;
+  box-shadow: 0 0 0 2px var(--outline), 0 0 14px rgba(47, 107, 255, 0.8);
+}
+.yo-punto::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: rgba(47, 107, 255, 0.45);
+  animation: yo-late 2s ease-out infinite;
+}
+@keyframes yo-late {
+  from { transform: scale(0.6); opacity: 0.9; }
+  to { transform: scale(2.6); opacity: 0; }
+}
+.yo-btn {
+  position: absolute;
+  z-index: 1000;
+  left: 10px;
+  top: 96px;
+  width: 40px;
+  height: 40px;
+  display: grid;
+  place-items: center;
+  border-radius: 12px;
+  border: 2px solid var(--outline);
+  background: var(--panel-2);
+  color: var(--ink);
+  box-shadow: var(--hard-sm);
+  cursor: pointer;
+}
+.yo-btn.ok { color: var(--spidey-blue); }
+.yo-btn.buscando svg { animation: yo-busca 1.2s linear infinite; }
+.yo-btn.bloqueada, .yo-btn.no-disponible { color: var(--faint); }
+@keyframes yo-busca { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) {
+  .yo-punto::before, .yo-btn.buscando svg { animation: none; }
+}
 .tiles-dark {
   filter: invert(1) hue-rotate(180deg) brightness(0.82) contrast(0.92) saturate(0.4);
 }
