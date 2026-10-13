@@ -24,6 +24,8 @@ export interface ResumenSala {
   cantidadJugadores: number;
   estado: EstadoSala;
   nombresJugadores: string[];
+  /** Mismo orden que `nombresJugadores`: así la app sabe si ya estás en la sala y te deja volver. */
+  idsJugadores?: string[];
 }
 
 /** Snapshot de una serpiente en un tick. */
