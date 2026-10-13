@@ -1,6 +1,5 @@
 'use client';
 
-import { useRouter } from 'next/navigation';
 import { AuthGate } from '@/components/AuthGate';
 import { Avatar } from '@/components/Avatar';
 import { Brand } from '@/components/Brand';
@@ -11,7 +10,6 @@ import { useTopics } from '@/lib/hooks';
 import { setSession, type SessionUser } from '@/lib/session';
 
 function BusinessShell({ user, children }: { user: SessionUser; children: React.ReactNode }) {
-  const router = useRouter();
   // El panel sigue su propio establecimiento: reservas, inventario y reclamos de sus promociones.
   useTopics([user.placeId ? `place:${user.placeId}` : null]);
 
@@ -26,7 +24,9 @@ function BusinessShell({ user, children }: { user: SessionUser; children: React.
           className="btn ghost sm icon"
           onClick={() => {
             setSession(null);
-            router.replace('/');
+            // Recarga completa: la conexión en vivo y todo lo que estaba en memoria
+            // eran del usuario anterior y no deben pasar al siguiente.
+            window.location.replace('/');
           }}
           aria-label="Salir"
           title="Cerrar sesión"
