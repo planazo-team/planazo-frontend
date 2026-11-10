@@ -4,8 +4,9 @@ import { useSyncExternalStore } from 'react';
 
 /**
  * Sesión: se entra únicamente con Google. El gateway verifica el ID token,
- * booking guarda la cuenta con su rol (cliente o negocio, elegido una vez) y
- * el gateway firma el JWT de Planazo (POST /api/auth/google). La sesión se
+ * booking guarda la cuenta y el gateway firma el JWT de Planazo (POST
+ * /api/auth/google). Una cuenta, dos modos: `role` es el modo activo
+ * (cliente o negocio); el modo negocio se activa registrando el negocio. La sesión se
  * guarda en localStorage: al recargar sigues adentro hasta que cierres sesión
  * o el token venza.
  */
@@ -18,6 +19,8 @@ export interface SessionUser {
   role: Role;
   /** Solo para negocio: el establecimiento que administra (si ya lo creó). */
   placeId?: string;
+  /** Si la cuenta tiene el modo negocio activado (puede cambiar a modo negocio). */
+  negocio?: boolean;
   token?: string;
 }
 

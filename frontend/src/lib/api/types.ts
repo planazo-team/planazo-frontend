@@ -11,6 +11,7 @@ import type {
   Slot,
   Zone,
 } from '../types';
+import type { DatosNegocio } from '../negocio';
 import type { Role, SessionUser } from '../session';
 
 /** Lo que un negocio llena para aparecer en el mapa (POST /api/auth/negocio). */
@@ -31,10 +32,15 @@ export interface NewPlaceInput {
 export interface Api {
   // sesión
   /**
-   * Entra con el ID token de Google. La primera vez falla con `ROL_REQUERIDO`
-   * y se vuelve a llamar con el rol elegido; después el rol guardado manda.
+   * Entra con el ID token de Google en el modo pedido (cliente por defecto).
+   * En modo negocio falla con `NEGOCIO_NO_REGISTRADO` si la cuenta no ha
+   * registrado su negocio.
    */
-  loginGoogle(credential: string, role?: Role): Promise<ApiResult<SessionUser>>;
+  loginGoogle(credential: string, modo?: Role): Promise<ApiResult<SessionUser>>;
+  /** Activa el modo negocio (NIT verificado) y deja la sesión en modo negocio. */
+  registrarNegocio(credential: string, datos: DatosNegocio): Promise<ApiResult<SessionUser>>;
+  /** Cambia entre modo cliente y modo negocio con un token nuevo. */
+  cambiarModo(modo: Role): Promise<ApiResult<SessionUser>>;
   /** Un negocio crea su lugar; devuelve el lugar y la sesión actualizada (con placeId). */
   createBusiness(input: NewPlaceInput): Promise<ApiResult<{ place: Place; user: SessionUser }>>;
 

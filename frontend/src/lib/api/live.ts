@@ -49,19 +49,31 @@ const qs = (o: Record<string, string | undefined>) => {
   return s ? `?${s}` : '';
 };
 
-type AuthResponse = { token: string; user: { id: string; name: string; role: SessionUser['role']; placeId: string | null } };
+type AuthResponse = {
+  token: string;
+  user: { id: string; name: string; role: SessionUser['role']; placeId: string | null; negocio?: boolean };
+};
 
 const toSession = (r: AuthResponse): SessionUser => ({
   id: r.user.id,
   name: r.user.name,
   role: r.user.role,
   ...(r.user.placeId ? { placeId: r.user.placeId } : {}),
+  negocio: r.user.negocio === true,
   token: r.token,
 });
 
 export const liveApi: Api = {
-  loginGoogle: async (credential, role) => {
-    const r = await call<AuthResponse>('POST', '/api/auth/google', { credential, ...(role ? { role } : {}) });
+  loginGoogle: async (credential, modo) => {
+    const r = await call<AuthResponse>('POST', '/api/auth/google', { credential, ...(modo ? { modo } : {}) });
+    return r.ok ? { ok: true, data: toSession(r.data) } : r;
+  },
+  registrarNegocio: async (credential, datos) => {
+    const r = await call<AuthResponse>('POST', '/api/auth/negocio/registro', { credential, ...datos });
+    return r.ok ? { ok: true, data: toSession(r.data) } : r;
+  },
+  cambiarModo: async (modo) => {
+    const r = await call<AuthResponse>('POST', '/api/auth/modo', { modo });
     return r.ok ? { ok: true, data: toSession(r.data) } : r;
   },
   createBusiness: async (input) => {
