@@ -1,5 +1,5 @@
 import { config } from '../config';
-import { deviceId, getSession, setSession, type SessionUser } from '../session';
+import { getSession, setSession, type SessionUser } from '../session';
 import type { ApiResult, ErrorCode, Place, PlaceDetail, Promo } from '../types';
 import type { Api } from './types';
 
@@ -21,8 +21,8 @@ async function call<T>(method: string, path: string, body?: unknown): Promise<Ap
     });
     const data = res.status === 204 ? null : await res.json().catch(() => null);
     if (!res.ok) {
-      // Token vencido o firmado con otro secreto: se cierra la sesión y se vuelve a entrar con el nombre.
-      if (res.status === 401 && token && !path.startsWith('/api/auth/login')) setSession(null);
+      // Token vencido o firmado con otro secreto: se cierra la sesión y se vuelve a entrar con Google.
+      if (res.status === 401 && token && !path.startsWith('/api/auth/google')) setSession(null);
       return {
         ok: false,
         status: res.status,
@@ -49,19 +49,31 @@ const qs = (o: Record<string, string | undefined>) => {
   return s ? `?${s}` : '';
 };
 
-type AuthResponse = { token: string; user: { id: string; name: string; role: SessionUser['role']; placeId: string | null } };
+type AuthResponse = {
+  token: string;
+  user: { id: string; name: string; role: SessionUser['role']; placeId: string | null; negocio?: boolean };
+};
 
 const toSession = (r: AuthResponse): SessionUser => ({
   id: r.user.id,
   name: r.user.name,
   role: r.user.role,
   ...(r.user.placeId ? { placeId: r.user.placeId } : {}),
+  negocio: r.user.negocio === true,
   token: r.token,
 });
 
 export const liveApi: Api = {
-  login: async (name, role) => {
-    const r = await call<AuthResponse>('POST', '/api/auth/login', { name, role, deviceId: deviceId() });
+  loginGoogle: async (credential, modo) => {
+    const r = await call<AuthResponse>('POST', '/api/auth/google', { credential, ...(modo ? { modo } : {}) });
+    return r.ok ? { ok: true, data: toSession(r.data) } : r;
+  },
+  registrarNegocio: async (credential, datos) => {
+    const r = await call<AuthResponse>('POST', '/api/auth/negocio/registro', { credential, ...datos });
+    return r.ok ? { ok: true, data: toSession(r.data) } : r;
+  },
+  cambiarModo: async (modo) => {
+    const r = await call<AuthResponse>('POST', '/api/auth/modo', { modo });
     return r.ok ? { ok: true, data: toSession(r.data) } : r;
   },
   createBusiness: async (input) => {
