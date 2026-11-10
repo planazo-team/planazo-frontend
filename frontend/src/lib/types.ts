@@ -123,6 +123,10 @@ export type ErrorCode =
   | 'SALA_NO_EXISTE'
   | 'SALA_EN_JUEGO'
   | 'JUGADORES_INSUFICIENTES'
+  | 'ROL_REQUERIDO'
+  | 'CREDENCIAL_INVALIDA'
+  | 'CORREO_NO_VERIFICADO'
+  | 'GOOGLE_NO_CONFIGURADO'
   | 'SIN_CONEXION';
 
 /* ------------------------------------------------------------------ */

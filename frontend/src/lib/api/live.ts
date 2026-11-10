@@ -1,5 +1,5 @@
 import { config } from '../config';
-import { deviceId, getSession, setSession, type SessionUser } from '../session';
+import { getSession, setSession, type SessionUser } from '../session';
 import type { ApiResult, ErrorCode, Place, PlaceDetail, Promo } from '../types';
 import type { Api } from './types';
 
@@ -21,8 +21,8 @@ async function call<T>(method: string, path: string, body?: unknown): Promise<Ap
     });
     const data = res.status === 204 ? null : await res.json().catch(() => null);
     if (!res.ok) {
-      // Token vencido o firmado con otro secreto: se cierra la sesión y se vuelve a entrar con el nombre.
-      if (res.status === 401 && token && !path.startsWith('/api/auth/login')) setSession(null);
+      // Token vencido o firmado con otro secreto: se cierra la sesión y se vuelve a entrar con Google.
+      if (res.status === 401 && token && !path.startsWith('/api/auth/google')) setSession(null);
       return {
         ok: false,
         status: res.status,
@@ -60,8 +60,8 @@ const toSession = (r: AuthResponse): SessionUser => ({
 });
 
 export const liveApi: Api = {
-  login: async (name, role) => {
-    const r = await call<AuthResponse>('POST', '/api/auth/login', { name, role, deviceId: deviceId() });
+  loginGoogle: async (credential, role) => {
+    const r = await call<AuthResponse>('POST', '/api/auth/google', { credential, ...(role ? { role } : {}) });
     return r.ok ? { ok: true, data: toSession(r.data) } : r;
   },
   createBusiness: async (input) => {

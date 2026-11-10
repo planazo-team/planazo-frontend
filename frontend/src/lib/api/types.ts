@@ -30,8 +30,11 @@ export interface NewPlaceInput {
  */
 export interface Api {
   // sesión
-  /** Entra solo con el nombre. En live el gateway firma el token. */
-  login(name: string, role: Role): Promise<ApiResult<SessionUser>>;
+  /**
+   * Entra con el ID token de Google. La primera vez falla con `ROL_REQUERIDO`
+   * y se vuelve a llamar con el rol elegido; después el rol guardado manda.
+   */
+  loginGoogle(credential: string, role?: Role): Promise<ApiResult<SessionUser>>;
   /** Un negocio crea su lugar; devuelve el lugar y la sesión actualizada (con placeId). */
   createBusiness(input: NewPlaceInput): Promise<ApiResult<{ place: Place; user: SessionUser }>>;
 
