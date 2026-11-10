@@ -1,5 +1,7 @@
 # Planazo
 
+[![Quality Gate](https://sonarcloud.io/api/project_badges/measure?project=planazo-team_planazo-frontend&metric=alert_status)](https://sonarcloud.io/summary/new_code?id=planazo-team_planazo-frontend) [![Cobertura](https://sonarcloud.io/api/project_badges/measure?project=planazo-team_planazo-frontend&metric=coverage)](https://sonarcloud.io/component_measures?id=planazo-team_planazo-frontend&metric=coverage)
+
 Plataforma para descubrir restaurantes, discotecas, hoteles y eventos en un **mapa en tiempo real**, con un **agente inteligente** que arma la ruta del plan y la reserva.
 
 Piloto en **Zona G y Zona T** — Chapinero, Bogotá · MVP de **8 semanas**.

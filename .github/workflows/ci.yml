@@ -14,6 +14,9 @@ jobs:
         working-directory: frontend
     steps:
       - uses: actions/checkout@v7
+        with:
+          # Historial completo: SonarCloud lo usa para detectar el código nuevo y el blame
+          fetch-depth: 0
       - uses: actions/setup-node@v7
         with:
           node-version: 20
@@ -21,6 +24,35 @@ jobs:
           cache-dependency-path: frontend/package-lock.json
       - run: npm ci
       - run: npm run typecheck
+
+      # Aún no hay pruebas: --if-present hace que el paso pase sin script "test".
+      # Cuando exista, debe generar coverage/lcov.info (lo lee SonarCloud).
+      - name: Pruebas con cobertura
+        run: npm run test --if-present -- --coverage
+
+      # ESC-05: el análisis solo corre si existe el secreto SONAR_TOKEN, para no
+      # bloquear PRs mientras se crea la organización en SonarCloud (ni los de Dependabot,
+      # que no reciben secretos de Actions).
+      - name: ¿Está configurado SonarCloud?
+        id: sonar
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        run: |
+          if [ -n "$SONAR_TOKEN" ]; then
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+            echo "::notice title=SonarCloud::Falta el secreto SONAR_TOKEN; se omite el análisis estático."
+          fi
+
+      # Corre desde la raíz del repo (los "uses:" no heredan working-directory),
+      # donde está sonar-project.properties.
+      - name: Análisis estático (SonarCloud)
+        if: steps.sonar.outputs.enabled == 'true'
+        uses: SonarSource/sonarqube-scan-action@e805d875275f728fac1885b413934be6d7c63f65 # v8.4.1
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+
       - run: npm run build
         env:
           NEXT_TELEMETRY_DISABLED: 1
