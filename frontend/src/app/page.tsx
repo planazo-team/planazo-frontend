@@ -15,6 +15,23 @@ import { setSession, useSession, type Role, type SessionUser } from '@/lib/sessi
 
 const home = (u: SessionUser) => (u.role === 'cliente' ? '/cliente/mapa' : '/negocio');
 
+const ROLES: Record<Role, { boton: string; icono: 'sparkles' | 'store'; texto: string; entrar: string; destino: string }> = {
+  cliente: {
+    boton: 'Voy a salir',
+    icono: 'sparkles',
+    texto: 'Explora el mapa, reserva cupos, reclama promos y juega por bonos.',
+    entrar: 'Entrar a explorar',
+    destino: 'el mapa',
+  },
+  negocio: {
+    boton: 'Tengo un negocio',
+    icono: 'store',
+    texto: 'Crea tu lugar en el mapa, lanza promociones y mira las reservas llegar en vivo.',
+    entrar: 'Entrar a mi negocio',
+    destino: 'tu panel',
+  },
+};
+
 const COLLAGE: Array<{ img: string; tag: string; r: string }> = [
   { img: 'p7', tag: 'Cócteles', r: '-3deg' },
   { img: 'p9', tag: 'Rumba', r: '2deg' },
@@ -30,9 +47,12 @@ const conGoogle = !!config.googleClientId;
 export default function LoginPage() {
   const router = useRouter();
   const session = useSession();
-  // La credencial de Google queda guardada mientras la persona elige el rol (la primera vez).
+  // Para registrarse se elige el rol primero. Quien ya tiene cuenta puede ir directo a Google:
+  // entra con el rol que eligió al registrarse.
+  const [role, setRole] = useState<Role | null>(null);
+  // Respaldo: alguien nuevo que fue a Google sin elegir. Se guarda la credencial mientras elige.
   const [pendiente, setPendiente] = useState<{ credential: string; name: string } | null>(null);
-  const [role, setRole] = useState<Role>('cliente');
+  const [aviso, setAviso] = useState<string | null>(null);
   const [nombreDemo, setNombreDemo] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -58,8 +78,30 @@ export default function LoginPage() {
       confeti(window.innerWidth / 2, window.innerHeight / 2, 50, ['#ff3b5c', '#2f6bff', '#ffffff']);
     }
     setSession(r.data);
-    setTimeout(() => router.push(home(r.data)), multiverso ? 700 : 0);
+    // El rol guardado manda: si eligió el otro, se le cuenta antes de llevarlo a lo suyo.
+    const otroRol = elegido && elegido !== r.data.role;
+    if (otroRol) {
+      setAviso(
+        `Tu cuenta ya está registrada como ${r.data.role === 'negocio' ? 'negocio' : 'cliente'}, así que te llevamos a ${ROLES[r.data.role].destino}.`,
+      );
+    }
+    setTimeout(() => router.push(home(r.data)), otroRol ? 2600 : multiverso ? 700 : 0);
   }
+
+  const selector = (
+    <>
+      <div className="segmented" role="group" aria-label="Tipo de cuenta">
+        {(Object.keys(ROLES) as Role[]).map((r) => (
+          <button key={r} type="button" aria-pressed={role === r} onClick={() => setRole(r)} disabled={busy}>
+            <Icon name={ROLES[r].icono} /> {ROLES[r].boton}
+          </button>
+        ))}
+      </div>
+      <p className="muted small" style={{ margin: '-4px 0 0', minHeight: 20 }}>
+        {role ? ROLES[role].texto : 'Elige una opción para crear tu cuenta.'}
+      </p>
+    </>
+  );
 
   const multiverso = pendiente ? saludoMultiverso(pendiente.name) : null;
 
@@ -110,19 +152,7 @@ export default function LoginPage() {
               </span>
             )}
 
-            <div className="segmented" role="group" aria-label="Tipo de cuenta">
-              <button type="button" aria-pressed={role === 'cliente'} onClick={() => setRole('cliente')}>
-                <Icon name="sparkles" /> Voy a salir
-              </button>
-              <button type="button" aria-pressed={role === 'negocio'} onClick={() => setRole('negocio')}>
-                <Icon name="store" /> Tengo un negocio
-              </button>
-            </div>
-            <p className="muted small" style={{ margin: '-4px 0 0' }}>
-              {role === 'cliente'
-                ? 'Explora el mapa, reserva cupos, reclama promos y juega por bonos.'
-                : 'Crea tu lugar en el mapa, lanza promociones y mira las reservas llegar en vivo.'}
-            </p>
+            {selector}
             <p className="muted small" style={{ margin: 0 }}>
               Esta elección queda guardada en tu cuenta y no se puede cambiar después.
             </p>
@@ -135,11 +165,11 @@ export default function LoginPage() {
 
             <button
               className={`btn block ${role === 'negocio' ? 'yellow' : ''}`}
-              disabled={busy}
-              onClick={() => entrar(pendiente.credential, role)}
+              disabled={busy || !role}
+              onClick={() => role && entrar(pendiente.credential, role)}
               style={{ minHeight: 54, fontSize: 17 }}
             >
-              {busy ? 'Entrando…' : role === 'cliente' ? 'Entrar a explorar' : 'Entrar a mi negocio'}
+              {busy ? 'Entrando…' : role ? ROLES[role].entrar : 'Elige una opción'}
               <Icon name="arrowRight" />
             </button>
             <button type="button" className="btn ghost block" disabled={busy} onClick={() => setPendiente(null)}>
@@ -148,21 +178,24 @@ export default function LoginPage() {
           </div>
         ) : (
           <div className="stack" style={{ gap: 14 }}>
-            <span className="eyebrow">Entrar</span>
-            <h2 style={{ marginTop: 6 }}>Entra con tu cuenta de Google</h2>
-            <p className="muted small" style={{ margin: '0 0 4px' }}>
-              No creamos contraseñas: Google confirma quién eres. La primera vez eliges si vienes a salir o tienes un negocio.
+            <span className="eyebrow">Crear cuenta o entrar</span>
+            <h2 style={{ marginTop: 6 }}>¿Cómo vas a usar Planazo?</h2>
+            {selector}
+            <p className="muted small" style={{ margin: 0 }}>
+              {role
+                ? `Ahora continúa con Google para ${role === 'cliente' ? 'crear tu cuenta' : 'crear la cuenta de tu negocio'}. No creamos contraseñas: Google confirma quién eres.`
+                : '¿Ya tienes cuenta? Entra directo con Google y te llevamos a lo tuyo.'}
             </p>
 
             {conGoogle ? (
-              <GoogleButton onCredential={(c) => entrar(c)} />
+              <GoogleButton onCredential={(c) => entrar(c, role ?? undefined)} />
             ) : config.demo ? (
               <form
                 className="stack"
                 style={{ gap: 10 }}
                 onSubmit={(e) => {
                   e.preventDefault();
-                  if (nombreDemo.trim().length >= 2) entrar(credencialDemo(nombreDemo.trim()));
+                  if (nombreDemo.trim().length >= 2) entrar(credencialDemo(nombreDemo.trim()), role ?? undefined);
                 }}
               >
                 <label className="field">
@@ -186,6 +219,11 @@ export default function LoginPage() {
             )}
 
             {busy && <span className="caption">Verificando con Google…</span>}
+            {aviso && (
+              <p className="alert fade-in" role="status" style={{ margin: 0 }}>
+                {aviso}
+              </p>
+            )}
             {error && (
               <p className="alert error fade-in" role="alert" style={{ margin: 0 }}>
                 {error}
