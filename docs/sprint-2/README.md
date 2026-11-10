@@ -4,6 +4,7 @@
 |---|---|
 | [`escenarios-de-calidad.pdf`](escenarios-de-calidad.pdf) | Los 7 escenarios de calidad tal como se entregaron al profesor |
 | [`escenarios-de-calidad.docx`](escenarios-de-calidad.docx) | Los mismos escenarios en el formato del borrador en Word |
+| [`escenarios-de-calidad-v2.pdf`](escenarios-de-calidad-v2.pdf) · [`.docx`](escenarios-de-calidad-v2.docx) | **Versión 2**: ESC-01 actualizado al login únicamente con Google (identidad delegada, sin contraseñas) |
 | [`plan-del-sprint.md`](plan-del-sprint.md) | Reparto, plan día a día, historias con criterios de aceptación y tareas |
 | [`burndown-proyectado.png`](burndown-proyectado.png) | Cómo debería bajar el burndown si cada uno cierra lo de su día |
 | [`backlog-azure.csv`](backlog-azure.csv) | El backlog en formato de importación de Azure DevOps |
