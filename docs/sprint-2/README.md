@@ -8,3 +8,4 @@
 | [`plan-del-sprint.md`](plan-del-sprint.md) | Reparto, plan día a día, historias con criterios de aceptación y tareas |
 | [`burndown-proyectado.png`](burndown-proyectado.png) | Cómo debería bajar el burndown si cada uno cierra lo de su día |
 | [`backlog-azure.csv`](backlog-azure.csv) | El backlog en formato de importación de Azure DevOps |
+| [`sonarcloud.md`](sonarcloud.md) | ESC-05: cómo el CI integra SonarCloud, el plan gratis para repos privados y los pasos manuales |
