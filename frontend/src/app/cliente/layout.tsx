@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { AuthGate } from '@/components/AuthGate';
 import { BottomNav, SideRail } from '@/components/BottomNav';
 import { Brand } from '@/components/Brand';
+import { CambiarModo } from '@/components/CambiarModo';
 import { ConnectionBadge } from '@/components/ConnectionBadge';
 import { Avatar } from '@/components/Avatar';
 import { Icon } from '@/components/Icon';
@@ -30,6 +31,7 @@ function ClientShell({ user, children }: { user: SessionUser; children: React.Re
         <Brand />
         <div className="spacer" />
         <ConnectionBadge />
+        <CambiarModo user={user} />
         <Avatar name={user.name} />
         <button
           className="btn ghost sm icon"

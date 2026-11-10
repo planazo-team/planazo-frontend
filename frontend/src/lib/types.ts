@@ -123,6 +123,16 @@ export type ErrorCode =
   | 'SALA_NO_EXISTE'
   | 'SALA_EN_JUEGO'
   | 'JUGADORES_INSUFICIENTES'
+  | 'NEGOCIO_NO_REGISTRADO'
+  | 'NIT_INVALIDO'
+  | 'NIT_EN_USO'
+  | 'TELEFONO_INVALIDO'
+  | 'RAZON_SOCIAL_INVALIDA'
+  | 'TERMINOS_REQUERIDOS'
+  | 'CREDENCIAL_VIEJA'
+  | 'CREDENCIAL_INVALIDA'
+  | 'CORREO_NO_VERIFICADO'
+  | 'GOOGLE_NO_CONFIGURADO'
   | 'SIN_CONEXION';
 
 /* ------------------------------------------------------------------ */
