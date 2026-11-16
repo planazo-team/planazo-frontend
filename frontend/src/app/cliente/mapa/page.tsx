@@ -45,7 +45,7 @@ export default function MapaPage() {
   const [feed, setFeed] = useState<string[]>([]);
 
   useEffect(() => {
-    Promise.all([api.listPlaces(), api.activePromos()]).then(([p, pr]) => {
+    void Promise.all([api.listPlaces(), api.activePromos()]).then(([p, pr]) => {
       setPlaces(p);
       setPromos(pr);
       setLoaded(true);

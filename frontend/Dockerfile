@@ -3,7 +3,7 @@
 FROM node:20-alpine AS build
 WORKDIR /app
 COPY package*.json ./
-RUN npm ci
+RUN npm ci --ignore-scripts
 COPY . .
 # Las NEXT_PUBLIC_* se incrustan en el build: se pasan como build args desde compose.
 ARG NEXT_PUBLIC_API_MODE=live

@@ -409,6 +409,7 @@ class MockGame {
     const h = sn.body[0];
     const target = sim.food.reduce((best, f) =>
       Math.abs(f.x - h.x) + Math.abs(f.y - h.y) < Math.abs(best.x - h.x) + Math.abs(best.y - h.y) ? f : best,
+      sim.food[0],
     );
     const blocked = new Set<string>();
     for (const s of sim.snakes.values()) s.body.forEach((c) => blocked.add(`${c.x},${c.y}`));

@@ -61,7 +61,7 @@ export default function PromosPage() {
   useRtEvent<{ promoId: string }>(['PROMO.EXPIRED'], (e) => setPromos((ps) => ps.filter((x) => x.id !== e.payload.promoId)));
   // Un cupón ganado por mí: se refresca la lista de cupones.
   useRtEvent<PromoWonPayload>(['PROMO.WON'], (e) => {
-    if (e.payload.userId && e.payload.userId === me?.id) api.myCoupons().then(setCupones);
+    if (e.payload.userId && e.payload.userId === me?.id) void api.myCoupons().then(setCupones);
   });
 
   const activas = useMemo(
