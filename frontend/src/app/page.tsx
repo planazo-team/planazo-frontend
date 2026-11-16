@@ -2,16 +2,36 @@
 
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
-import { Avatar } from '@/components/Avatar';
 import { Brand } from '@/components/Brand';
 import { boom, confeti, saludoMultiverso } from '@/components/fx/eggs';
+import { GoogleButton } from '@/components/GoogleButton';
 import { Icon, SpiderArt } from '@/components/Icon';
+import { RegistroNegocio } from '@/components/RegistroNegocio';
 import { api } from '@/lib/api';
 import { coverUrl } from '@/lib/brand';
 import { config } from '@/lib/config';
-import { NOMBRE_VALIDO, setSession, useSession, type Role, type SessionUser } from '@/lib/session';
+import { credencialDemo, leerCredencial } from '@/lib/google';
+import type { DatosNegocio } from '@/lib/negocio';
+import { setSession, useSession, type Role, type SessionUser } from '@/lib/session';
 
 const home = (u: SessionUser) => (u.role === 'cliente' ? '/cliente/mapa' : '/negocio');
+
+const MODOS: Record<Role, { boton: string; icono: 'sparkles' | 'store'; texto: string; detalle: string }> = {
+  cliente: {
+    boton: 'Voy a salir',
+    icono: 'sparkles',
+    texto: 'Explora el mapa, reserva cupos, reclama promos y juega por bonos.',
+    detalle: 'Entra o crea tu cuenta con Google. No creamos contraseñas: Google confirma quién eres.',
+  },
+  negocio: {
+    boton: 'Tengo un negocio',
+    icono: 'store',
+    texto: 'Crea tu lugar en el mapa, lanza promociones y mira las reservas llegar en vivo.',
+    detalle: 'Si ya registraste tu negocio entras a tu panel. Si no, después de Google te pedimos el NIT para verificarlo.',
+  },
+};
+
+const DATOS_VACIOS: DatosNegocio = { legalName: '', nit: '', phone: '', acceptTerms: false };
 
 const COLLAGE: Array<{ img: string; tag: string; r: string }> = [
   { img: 'p7', tag: 'Cócteles', r: '-3deg' },
@@ -22,53 +42,71 @@ const COLLAGE: Array<{ img: string; tag: string; r: string }> = [
   { img: 'p12', tag: 'Parque', r: '1.5deg' },
 ];
 
+/** Sin client ID de Google solo se puede entrar en modo demo (servicios simulados). */
+const conGoogle = !!config.googleClientId;
+
 export default function LoginPage() {
   const router = useRouter();
   const session = useSession();
-  const [name, setName] = useState('');
-  const [role, setRole] = useState<Role>('cliente');
+  // Una cuenta, dos modos. Cliente lo es cualquiera; negocio pide haber registrado el negocio.
+  const [modo, setModo] = useState<Role>('cliente');
+  // Registro del negocio: la credencial de Google queda guardada mientras se llenan los datos.
+  const [registro, setRegistro] = useState<{ credential: string; name: string } | null>(null);
+  const [datos, setDatos] = useState<DatosNegocio>(DATOS_VACIOS);
+  const [nota, setNota] = useState<string | null>(null);
+  const [nombreDemo, setNombreDemo] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Recordar el último nombre usado en este navegador.
+  // «Registrar mi negocio» desde la app del cliente llega aquí: hay que confirmar con Google.
   useEffect(() => {
-    try {
-      const ultimo = localStorage.getItem('planazo.lastName');
-      if (ultimo) setName(ultimo);
-    } catch {
-      /* sin almacenamiento */
+    if (new URLSearchParams(window.location.search).get('registro') === 'negocio') {
+      setModo('negocio');
+      setNota('Para registrar tu negocio, confirma con Google que eres tú.');
     }
   }, []);
 
-  const limpio = name.trim().replace(/\s+/g, ' ');
-  const valido = NOMBRE_VALIDO.test(limpio);
-  const multiverso = saludoMultiverso(limpio);
-
-  async function entrar(e: React.FormEvent) {
-    e.preventDefault();
-    if (!valido) {
-      setError('Escribe un nombre de 2 a 30 letras.');
-      return;
-    }
-    setBusy(true);
-    setError(null);
-    const r = await api.login(limpio, role);
-    if (!r.ok) {
-      setBusy(false);
-      setError(r.status === 0 ? 'El servidor no respondió. Revisa tu conexión e intenta de nuevo.' : r.error);
-      return;
-    }
-    try {
-      localStorage.setItem('planazo.lastName', limpio);
-    } catch {
-      /* sin almacenamiento */
-    }
+  function terminar(u: SessionUser) {
+    const multiverso = saludoMultiverso(u.name);
     if (multiverso) {
       boom('¡THWIP!', window.innerWidth / 2, window.innerHeight / 2, true);
       confeti(window.innerWidth / 2, window.innerHeight / 2, 50, ['#ff3b5c', '#2f6bff', '#ffffff']);
     }
-    setSession(r.data);
-    setTimeout(() => router.push(home(r.data)), multiverso ? 700 : 0);
+    setSession(u);
+    setTimeout(() => router.push(home(u)), multiverso ? 700 : 0);
+  }
+
+  const sinRed = 'El servidor no respondió. Revisa tu conexión e intenta de nuevo.';
+
+  async function entrar(credential: string) {
+    setBusy(true);
+    setError(null);
+    const r = await api.loginGoogle(credential, modo);
+    setBusy(false);
+    if (r.ok) return terminar(r.data);
+    if (r.code === 'NEGOCIO_NO_REGISTRADO') {
+      const perfil = leerCredencial(credential);
+      setNota(null);
+      setRegistro({ credential, name: perfil?.name || perfil?.email.split('@')[0] || '' });
+      return;
+    }
+    setError(r.status === 0 ? sinRed : r.error);
+  }
+
+  async function registrar() {
+    if (!registro) return;
+    setBusy(true);
+    setError(null);
+    const r = await api.registrarNegocio(registro.credential, datos);
+    setBusy(false);
+    if (r.ok) return terminar(r.data);
+    if (r.code === 'CREDENCIAL_VIEJA') {
+      // Pasaron más de 10 minutos desde Google: se confirma otra vez y los datos se conservan.
+      setRegistro(null);
+      setNota('Por seguridad, vuelve a confirmar con Google. Tus datos siguen ahí.');
+      return;
+    }
+    setError(r.status === 0 ? sinRed : r.error);
   }
 
   return (
@@ -105,70 +143,89 @@ export default function LoginPage() {
       </section>
 
       <section className="card login-card page" style={{ animationDelay: '120ms' }}>
-        <span className="eyebrow">Entrar</span>
-        <h2 style={{ marginTop: 6 }}>¿Cómo te llamas?</h2>
-        <p className="muted small" style={{ margin: '6px 0 16px' }}>
-          Sin contraseña ni registro: con tu nombre basta. Este navegador te recuerda.
-        </p>
-
-        <form className="stack" style={{ gap: 14 }} onSubmit={entrar}>
-          <div className="row" style={{ gap: 12 }}>
-            {limpio ? <Avatar name={limpio} size={52} /> : <span className="avatar" style={{ width: 52, height: 52 }}><Icon name="user" /></span>}
-            <label className="field grow">
-              <span className="visually-hidden">Tu nombre</span>
-              <input
-                className="name-input"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                placeholder="Tu nombre"
-                autoComplete="given-name"
-                maxLength={30}
-                autoFocus
-              />
-            </label>
-          </div>
-
-          <div className="greeting">
-            {multiverso ? (
-              <span className="caption pop-in" key={multiverso}>
-                <SpiderArt size={18} color="#2b2200" eyes="#ffd84a" /> {multiverso}
-              </span>
-            ) : limpio.length >= 2 ? (
-              <span className="muted small fade-in">¡Hola, {limpio.split(' ')[0]}! ¿Vienes a salir o a atender tu negocio?</span>
-            ) : null}
-          </div>
-
-          <div className="segmented" role="group" aria-label="Tipo de cuenta">
-            <button type="button" aria-pressed={role === 'cliente'} onClick={() => setRole('cliente')}>
-              <Icon name="sparkles" /> Voy a salir
-            </button>
-            <button type="button" aria-pressed={role === 'negocio'} onClick={() => setRole('negocio')}>
-              <Icon name="store" /> Tengo un negocio
-            </button>
-          </div>
-          <p className="muted small" style={{ margin: '-4px 0 0' }}>
-            {role === 'cliente'
-              ? 'Explora el mapa, reserva cupos, reclama promos y juega por bonos.'
-              : 'Crea tu lugar en el mapa, lanza promociones y mira las reservas llegar en vivo.'}
-          </p>
-
-          {error && (
-            <p className="alert error fade-in" role="alert" style={{ margin: 0 }}>
-              {error}
+        {registro ? (
+          <RegistroNegocio
+            nombre={registro.name}
+            datos={datos}
+            onCambio={setDatos}
+            onEnviar={registrar}
+            onCancelar={() => {
+              setRegistro(null);
+              setModo('cliente');
+              setError(null);
+            }}
+            busy={busy}
+            error={error}
+          />
+        ) : (
+          <div className="stack" style={{ gap: 14 }}>
+            <span className="eyebrow">Crear cuenta o entrar</span>
+            <h2 style={{ marginTop: 6 }}>¿Cómo vas a usar Planazo?</h2>
+            <div className="segmented" role="group" aria-label="Modo de la cuenta">
+              {(Object.keys(MODOS) as Role[]).map((m) => (
+                <button key={m} type="button" aria-pressed={modo === m} onClick={() => setModo(m)} disabled={busy}>
+                  <Icon name={MODOS[m].icono} /> {MODOS[m].boton}
+                </button>
+              ))}
+            </div>
+            <p className="muted small" style={{ margin: '-4px 0 0' }}>
+              {MODOS[modo].texto}
             </p>
-          )}
+            <p className="muted small" style={{ margin: 0 }}>
+              {MODOS[modo].detalle} Con la misma cuenta puedes cambiar de modo cuando quieras.
+            </p>
 
-          <button className={`btn block ${role === 'negocio' ? 'yellow' : ''}`} disabled={busy || !valido} style={{ minHeight: 54, fontSize: 17 }}>
-            {busy ? 'Entrando…' : role === 'cliente' ? 'Entrar a explorar' : 'Entrar a mi negocio'}
-            <Icon name="arrowRight" />
-          </button>
+            {nota && (
+              <p className="alert info fade-in" role="status" style={{ margin: 0 }}>
+                {nota}
+              </p>
+            )}
 
-          {session && (
-            <button type="button" className="btn ghost block" onClick={() => router.push(home(session))}>
-              Seguir como {session.name}
-            </button>
-          )}
-        </form>
+            {conGoogle ? (
+              <GoogleButton onCredential={(c) => entrar(c)} />
+            ) : config.demo ? (
+              <form
+                className="stack"
+                style={{ gap: 10 }}
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  if (nombreDemo.trim().length >= 2) entrar(credencialDemo(nombreDemo.trim()));
+                }}
+              >
+                <label className="field">
+                  <span className="visually-hidden">Nombre para el modo demo</span>
+                  <input
+                    className="name-input"
+                    value={nombreDemo}
+                    onChange={(e) => setNombreDemo(e.target.value)}
+                    placeholder="Nombre (modo demo, sin Google)"
+                    maxLength={30}
+                  />
+                </label>
+                <button className="btn block" disabled={busy || nombreDemo.trim().length < 2}>
+                  Entrar en modo demo <Icon name="arrowRight" />
+                </button>
+              </form>
+            ) : (
+              <p className="alert error" role="alert" style={{ margin: 0 }}>
+                Falta configurar el inicio de sesión con Google (NEXT_PUBLIC_GOOGLE_CLIENT_ID).
+              </p>
+            )}
+
+            {busy && <span className="caption">Verificando con Google…</span>}
+            {error && (
+              <p className="alert error fade-in" role="alert" style={{ margin: 0 }}>
+                {error}
+              </p>
+            )}
+
+            {session && (
+              <button type="button" className="btn ghost block" onClick={() => router.push(home(session))}>
+                Seguir como {session.name}
+              </button>
+            )}
+          </div>
+        )}
 
         {config.demo && (
           <p className="demo-note" style={{ marginTop: 16 }}>

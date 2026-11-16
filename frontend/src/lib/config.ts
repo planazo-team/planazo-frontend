@@ -6,6 +6,8 @@ export const config = {
   mode,
   /** En modo mock se muestran detalles técnicos útiles para demostrar los retos. */
   demo: mode === 'mock',
+  /** Client ID de OAuth de Google. Se entra únicamente con Google. */
+  googleClientId: process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID ?? '',
   apiUrl: (process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8080').replace(/\/$/, ''),
   /**
    * En `live` estas dos son opcionales: si no están definidas, la app funciona

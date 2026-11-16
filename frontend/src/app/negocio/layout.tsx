@@ -3,6 +3,7 @@
 import { AuthGate } from '@/components/AuthGate';
 import { Avatar } from '@/components/Avatar';
 import { Brand } from '@/components/Brand';
+import { CambiarModo } from '@/components/CambiarModo';
 import { ConnectionBadge } from '@/components/ConnectionBadge';
 import { Icon } from '@/components/Icon';
 import { PromoToast } from '@/components/PromoToast';
@@ -19,6 +20,7 @@ function BusinessShell({ user, children }: { user: SessionUser; children: React.
         <Brand sub="Negocios" />
         <div className="spacer" />
         <ConnectionBadge />
+        <CambiarModo user={user} />
         <Avatar name={user.name} />
         <button
           className="btn ghost sm icon"

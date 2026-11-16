@@ -1,5 +1,7 @@
 # Planazo
 
+[![Quality Gate](https://sonarcloud.io/api/project_badges/measure?project=planazo-team_planazo-frontend&metric=alert_status)](https://sonarcloud.io/summary/new_code?id=planazo-team_planazo-frontend) [![Cobertura](https://sonarcloud.io/api/project_badges/measure?project=planazo-team_planazo-frontend&metric=coverage)](https://sonarcloud.io/component_measures?id=planazo-team_planazo-frontend&metric=coverage)
+
 Plataforma para descubrir restaurantes, discotecas, hoteles y eventos en un **mapa en tiempo real**, con un **agente inteligente** que arma la ruta del plan y la reserva.
 
 Piloto en **Zona G y Zona T** — Chapinero, Bogotá · MVP de **8 semanas**.
@@ -198,7 +200,7 @@ npm install
 npm run dev
 ```
 
-Abre `http://localhost:3000` y entra como cliente o como establecimiento. Por defecto corre en modo `mock`, sin backend ni variables de entorno.
+Abre `http://localhost:3000`. Se entra **únicamente con Google**: la primera vez cada cuenta elige si viene a salir (cliente) o tiene un negocio, y según ese rol ve la app del cliente (`/cliente`) o el panel del negocio (`/negocio`). Por defecto corre en modo `mock`, sin backend; ahí, si no hay `NEXT_PUBLIC_GOOGLE_CLIENT_ID`, se puede entrar con un nombre solo para la demo.
 
 **Modo `live`:** apunta el frontend a los servicios de Railway (las URLs de producción, o las de tu máquina si corres los servicios en local):
 
@@ -207,6 +209,7 @@ NEXT_PUBLIC_API_MODE=live
 NEXT_PUBLIC_API_URL=https://planazo-api-gateway-production.up.railway.app
 NEXT_PUBLIC_REALTIME_URL=wss://planazo-realtime-production.up.railway.app/ws
 NEXT_PUBLIC_GAME_URL=wss://planazo-game-production.up.railway.app
+NEXT_PUBLIC_GOOGLE_CLIENT_ID=<client ID de OAuth de Google, el mismo del gateway>
 ```
 
 **Desplegar en Vercel:** importa `planazo-frontend` y define **Root Directory = `frontend`**. Vercel detecta Next.js solo; agrega ahí las mismas variables de entorno para modo `live`. Pasos completos y contrato con el backend en [`frontend/README.md`](frontend/README.md).
