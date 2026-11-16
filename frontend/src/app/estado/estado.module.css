@@ -312,3 +312,20 @@
   margin: 10px 0 0;
   color: var(--ink);
 }
+
+.lbs {
+  border: 1px solid var(--brand);
+  border-radius: var(--radius);
+  padding: 16px;
+  margin-bottom: 20px;
+  background: rgba(63, 207, 158, 0.05);
+}
+
+.lbsTitle {
+  margin: 0;
+  font-size: 20px;
+}
+
+.lbs .grid {
+  margin: 12px 0;
+}
