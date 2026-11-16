@@ -122,6 +122,9 @@ class LiveGameClient implements GameClient {
     // registro difundiendo el estado actual, que así llega a esta ventana.
     this.subSala = this.stomp.subscribe(`/topic/salas/${salaId}`, (m) => this.h?.onEstado(JSON.parse(m.body) as EstadoJuego));
     this.stomp.publish({ destination: `/app/salas/${salaId}/registrar-sesion`, body: '{}' });
+    // Al volver de segundo plano el socket pudo haberse caído: decirle otra vez si estoy o no frente a la pantalla.
+    if (fueraDePantalla()) this.pausar();
+    else this.reanudar();
   }
 
   desuscribirSala() {
@@ -135,6 +138,16 @@ class LiveGameClient implements GameClient {
   mover(direccion: Direccion) {
     if (!this.stomp?.connected || !this.salaActual) return;
     this.stomp.publish({ destination: `/app/salas/${this.salaActual}/mover`, body: JSON.stringify({ direccion }) });
+  }
+
+  pausar() {
+    if (!this.stomp?.connected || !this.salaActual) return;
+    this.stomp.publish({ destination: `/app/salas/${this.salaActual}/pausar`, body: '{}' });
+  }
+
+  reanudar() {
+    if (!this.stomp?.connected || !this.salaActual) return;
+    this.stomp.publish({ destination: `/app/salas/${this.salaActual}/reanudar`, body: '{}' });
   }
 
   cerrar() {
@@ -209,11 +222,28 @@ class MockGameClient implements GameClient {
     if (this.salaActual) mockGame().moverSala(this.salaActual, this.me().id, direccion);
   }
 
+  pausar() {
+    if (this.salaActual) mockGame().pausarSala(this.salaActual, this.me().id);
+  }
+
+  reanudar() {
+    if (this.salaActual) mockGame().reanudarSala(this.salaActual, this.me().id);
+  }
+
   cerrar() {
     clearInterval(this.timer);
     this.desuscribirSala();
     this.h = null;
   }
+}
+
+/**
+ * ¿El jugador no está frente al juego? Pestaña oculta, app en segundo plano o
+ * la ventana sin foco (las teclas ya no le llegan): en todos esos casos la
+ * serpiente se pausa.
+ */
+export function fueraDePantalla(): boolean {
+  return typeof document !== 'undefined' && (document.hidden || !document.hasFocus());
 }
 
 /** Dónde guarda la pestaña la sala en la que está (para volver a ella al recargar). */
