@@ -22,7 +22,9 @@ async function call<T>(method: string, path: string, body?: unknown): Promise<Ap
     const data = res.status === 204 ? null : await res.json().catch(() => null);
     if (!res.ok) {
       // Token vencido o firmado con otro secreto: se cierra la sesión y se vuelve a entrar con Google.
-      if (res.status === 401 && token && !path.startsWith('/api/auth/google')) setSession(null);
+      // Un código de dos pasos equivocado también es 401, pero la sesión sigue siendo válida.
+      const deDosPasos = typeof data?.code === 'string' && data.code.startsWith('2FA_');
+      if (res.status === 401 && token && !deDosPasos && !path.startsWith('/api/auth/google')) setSession(null);
       return {
         ok: false,
         status: res.status,
@@ -64,17 +66,22 @@ const toSession = (r: AuthResponse): SessionUser => ({
 });
 
 export const liveApi: Api = {
-  loginGoogle: async (credential, modo) => {
-    const r = await call<AuthResponse>('POST', '/api/auth/google', { credential, ...(modo ? { modo } : {}) });
+  loginGoogle: async (credential, modo, codigo) => {
+    const r = await call<AuthResponse>('POST', '/api/auth/google', { credential, ...(modo ? { modo } : {}), ...(codigo ? { codigo } : {}) });
     return r.ok ? { ok: true, data: toSession(r.data) } : r;
   },
   registrarNegocio: async (credential, datos) => {
     const r = await call<AuthResponse>('POST', '/api/auth/negocio/registro', { credential, ...datos });
     return r.ok ? { ok: true, data: toSession(r.data) } : r;
   },
-  cambiarModo: async (modo) => {
-    const r = await call<AuthResponse>('POST', '/api/auth/modo', { modo });
+  cambiarModo: async (modo, codigo) => {
+    const r = await call<AuthResponse>('POST', '/api/auth/modo', { modo, ...(codigo ? { codigo } : {}) });
     return r.ok ? { ok: true, data: toSession(r.data) } : r;
+  },
+  dosPasos: {
+    estado: () => call('GET', '/api/auth/2fa'),
+    iniciar: () => call('POST', '/api/auth/2fa/iniciar'),
+    confirmar: (codigo) => call('POST', '/api/auth/2fa/confirmar', { codigo }),
   },
   createBusiness: async (input) => {
     const r = await call<AuthResponse & { place: Place }>('POST', '/api/auth/negocio', input);

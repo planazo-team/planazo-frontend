@@ -70,6 +70,19 @@ export const mockApi: Api = {
     }
     return { ok: true, data: sesionMock(cuenta, s.name, modo) };
   },
+  // En el modo simulado no hay servidor que guarde el secreto: la activación se
+  // puede recorrer, pero el código no se exige al entrar. El código de prueba es 123456.
+  dosPasos: {
+    estado: async () => ({ ok: true, data: { activo: false } }),
+    iniciar: async () => ({
+      ok: true,
+      data: { otpauthUri: 'otpauth://totp/Planazo:demo?secret=JBSWY3DPEHPK3PXP&issuer=Planazo', secreto: 'JBSWY3DPEHPK3PXP' },
+    }),
+    confirmar: async (codigo) =>
+      codigo === '123456'
+        ? { ok: true, data: { activo: true as const } }
+        : { ok: false, status: 401, code: '2FA_INVALIDO', error: 'En el modo simulado el código es 123456.' },
+  },
   createBusiness: async (input) => {
     const s = getSession();
     if (!s || s.role !== 'negocio') return { ok: false, status: 403, error: 'Solo una cuenta de negocio puede crear un lugar.' };

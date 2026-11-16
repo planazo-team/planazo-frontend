@@ -7,6 +7,7 @@ import { boom, confeti, saludoMultiverso } from '@/components/fx/eggs';
 import { GoogleButton } from '@/components/GoogleButton';
 import { Icon, SpiderArt } from '@/components/Icon';
 import { RegistroNegocio } from '@/components/RegistroNegocio';
+import { CodigoDosPasos } from '@/components/CodigoDosPasos';
 import { api } from '@/lib/api';
 import { coverUrl } from '@/lib/brand';
 import { config } from '@/lib/config';
@@ -52,6 +53,8 @@ export default function LoginPage() {
   const [modo, setModo] = useState<Role>('cliente');
   // Registro del negocio: la credencial de Google queda guardada mientras se llenan los datos.
   const [registro, setRegistro] = useState<{ credential: string; name: string } | null>(null);
+  /** Credencial de Google ya verificada que espera el código de dos pasos para entrar en modo negocio. */
+  const [segundoPaso, setSegundoPaso] = useState<string | null>(null);
   const [datos, setDatos] = useState<DatosNegocio>(DATOS_VACIOS);
   const [nota, setNota] = useState<string | null>(null);
   const [nombreDemo, setNombreDemo] = useState('');
@@ -84,12 +87,27 @@ export default function LoginPage() {
     const r = await api.loginGoogle(credential, modo);
     setBusy(false);
     if (r.ok) return terminar(r.data);
+    if (r.code === '2FA_REQUERIDO') {
+      setNota(null);
+      setSegundoPaso(credential);
+      return;
+    }
     if (r.code === 'NEGOCIO_NO_REGISTRADO') {
       const perfil = leerCredencial(credential);
       setNota(null);
       setRegistro({ credential, name: perfil?.name || perfil?.email.split('@')[0] || '' });
       return;
     }
+    setError(r.status === 0 ? sinRed : r.error);
+  }
+
+  async function entrarConCodigo(codigo: string) {
+    if (!segundoPaso) return;
+    setBusy(true);
+    setError(null);
+    const r = await api.loginGoogle(segundoPaso, 'negocio', codigo);
+    setBusy(false);
+    if (r.ok) return terminar(r.data);
     setError(r.status === 0 ? sinRed : r.error);
   }
 
@@ -143,7 +161,17 @@ export default function LoginPage() {
       </section>
 
       <section className="card login-card page" style={{ animationDelay: '120ms' }}>
-        {registro ? (
+        {segundoPaso ? (
+          <CodigoDosPasos
+            onEnviar={entrarConCodigo}
+            onCancelar={() => {
+              setSegundoPaso(null);
+              setError(null);
+            }}
+            busy={busy}
+            error={error}
+          />
+        ) : registro ? (
           <RegistroNegocio
             nombre={registro.name}
             datos={datos}

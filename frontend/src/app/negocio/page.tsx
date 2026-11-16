@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { CrearLugar } from '@/components/business/CrearLugar';
+import { DosPasos } from '@/components/business/DosPasos';
 import { CancelarReserva } from '@/components/CancelarReserva';
 import { AnimatedNumber } from '@/components/fx/AnimatedNumber';
 import { boom } from '@/components/fx/eggs';
@@ -118,6 +119,7 @@ function Panel({ placeId }: { placeId: string }) {
         <div className="stack" style={{ gap: 16 }}>
           <Reservations items={reservations} onCancelada={(id) => setReservations((rs) => rs.filter((r) => r.id !== id))} />
           <EventForm placeId={place.id} events={place.events} onCreated={load} />
+          <DosPasos />
         </div>
       </div>
     </main>
