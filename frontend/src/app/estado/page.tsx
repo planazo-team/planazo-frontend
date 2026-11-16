@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { config } from '@/lib/config';
 import s from './estado.module.css';
+import { Balanceadores, origenHttp, type EstadoLb } from './Balanceadores';
 
 /** Respuesta de GET /api/health/cluster (api-gateway). */
 interface EstadoServicio {
@@ -17,6 +18,8 @@ interface Cluster {
   gateway: string;
   at: number;
   servicios: EstadoServicio[];
+  /** Balanceadores propios delante de booking y promo (si los hay). */
+  balanceadores?: EstadoLb[];
 }
 
 interface Linea {
@@ -80,6 +83,11 @@ export default function EstadoPage() {
   const [ahora, setAhora] = useState(() => Date.now());
   const [llave, setLlave] = useState('');
   const [caos, setCaos] = useState<string | null>(null);
+  const [internos, setInternos] = useState<EstadoLb[]>([]);
+  const fuentesLb = useMemo(
+    () => [config.apiUrl, origenHttp(config.realtimeUrl)].filter((x): x is string => Boolean(x)),
+    [],
+  );
   const n = useRef(0);
   const enVuelo = useRef(0);
 
@@ -98,6 +106,7 @@ export default function EstadoPage() {
         return;
       }
       const datos = (await r.json()) as Cluster;
+      if (datos.balanceadores) setInternos(datos.balanceadores);
       const gateway = r.headers.get('x-served-by') ?? datos.gateway ?? null;
       const linea: Linea = { n: num, t, ok: r.ok, ms, gateway, servicios: datos.servicios ?? [] };
       setLineas((ls) => [linea, ...ls].slice(0, MAX_LINEAS));
@@ -238,6 +247,8 @@ export default function EstadoPage() {
           <span className={s.statL}>p95 de latencia</span>
         </div>
       </section>
+
+      {config.mode === 'live' ? <Balanceadores fuentes={fuentesLb} internos={internos} /> : null}
 
       <section className={s.grid} aria-label="Réplicas por servicio">
         {ordenCapas.map((capa) => {
