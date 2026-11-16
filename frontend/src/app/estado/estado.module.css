@@ -274,3 +274,41 @@
     display: none;
   }
 }
+
+.caos {
+  border: 1px dashed var(--spidey);
+  border-radius: var(--radius);
+  padding: 14px 16px;
+  margin-bottom: 18px;
+  background: rgba(255, 59, 92, 0.06);
+}
+
+.caosForm {
+  display: flex;
+  gap: 10px;
+  align-items: flex-end;
+  flex-wrap: wrap;
+}
+
+.caosLabel {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.caosInput {
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  color: var(--ink);
+  padding: 10px 12px;
+  font: inherit;
+  min-width: 220px;
+}
+
+.caosMsg {
+  margin: 10px 0 0;
+  color: var(--ink);
+}

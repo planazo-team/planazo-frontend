@@ -78,6 +78,8 @@ export default function EstadoPage() {
   const [latencias, setLatencias] = useState<number[]>([]);
   const [aviso, setAviso] = useState<string | null>(null);
   const [ahora, setAhora] = useState(() => Date.now());
+  const [llave, setLlave] = useState('');
+  const [caos, setCaos] = useState<string | null>(null);
   const n = useRef(0);
   const enVuelo = useRef(0);
 
@@ -101,7 +103,7 @@ export default function EstadoPage() {
       setLineas((ls) => [linea, ...ls].slice(0, MAX_LINEAS));
       setCapas((m) => {
         let out = contar(m, 'api-gateway', gateway, t);
-        for (const sv of linea.servicios) if (sv.ok) out = contar(out, sv.servicio, sv.replica, t);
+        for (const sv of linea.servicios) if (sv.ok) out = contar(out, sv.servicio, sv.replica ?? `${sv.servicio}@instancia-única`, t);
         return out;
       });
       setTotales((x) => (r.ok ? { ...x, ok: x.ok + 1 } : { ...x, error: x.error + 1 }));
@@ -125,6 +127,22 @@ export default function EstadoPage() {
     const id = setInterval(() => setAhora(Date.now()), 1000);
     return () => clearInterval(id);
   }, []);
+
+  /** Prueba de caos (ESC-04): apaga la réplica del gateway que atienda esta petición. */
+  const tumbar = async () => {
+    setCaos('Enviando…');
+    try {
+      const r = await fetch(`${config.apiUrl}/api/health/caos`, { method: 'POST', headers: { 'x-demo-key': llave } });
+      if (r.status === 202) {
+        const d = (await r.json()) as { apagada: string };
+        setCaos(`Se apagó ${d.apagada}. Railway la reinicia; mira cómo la otra réplica sigue atendiendo.`);
+      } else if (r.status === 401) setCaos('Llave de demo inválida.');
+      else if (r.status === 404) setCaos('La prueba de caos no está habilitada en este gateway.');
+      else setCaos(`Respuesta inesperada: ${r.status}`);
+    } catch {
+      setCaos('No se pudo contactar el gateway.');
+    }
+  };
 
   const total = totales.ok + totales.error;
   const p95 = useMemo(() => percentil(latencias, 95), [latencias]);
@@ -179,6 +197,31 @@ export default function EstadoPage() {
         <button type="button" className="btn ghost" onClick={reiniciar}>
           Reiniciar contadores
         </button>
+      </section>
+
+      <section className={s.caos} aria-label="Prueba de caos">
+        <form
+          className={s.caosForm}
+          onSubmit={(e) => {
+            e.preventDefault();
+            void tumbar();
+          }}
+        >
+          <label className={s.caosLabel}>
+            <span>Llave de demo</span>
+            <input
+              type="password"
+              value={llave}
+              onChange={(e) => setLlave(e.target.value)}
+              autoComplete="off"
+              className={s.caosInput}
+            />
+          </label>
+          <button type="submit" className="btn hero" disabled={!llave}>
+            Tumbar una réplica del gateway
+          </button>
+        </form>
+        {caos ? <p className={s.caosMsg}>{caos}</p> : null}
       </section>
 
       <section className={s.stats} aria-label="Resumen">
@@ -247,7 +290,7 @@ export default function EstadoPage() {
                   <b>gateway@{corto(l.gateway)}</b>
                   {l.servicios.map((sv) => (
                     <span key={sv.servicio} className={sv.ok ? undefined : s.logBad}>
-                      {' '}→ {sv.servicio}@{sv.ok ? corto(sv.replica) : 'caído'}
+                      {' '}→ {sv.servicio}@{sv.ok ? (sv.replica ? corto(sv.replica) : 'única') : 'caído'}
                     </span>
                   ))}
                 </span>
