@@ -70,6 +70,7 @@ describe('salas fijas (protocolo de planazo-game)', () => {
     juego.unirseSala('sala-002', { id: 'u1', name: 'Ana' });
     await vi.advanceTimersByTimeAsync(5700);
     juego.pausarSala('sala-002', 'u1');
+    juego.pausarSala('sala-002', 'bot-sala-002-Camilo'); // nadie se mueve: el resultado no depende del azar
     let fin: EstadoJuego | undefined;
     juego.conectarSala('sala-002', 'u1', (e) => (fin = e));
     await vi.advanceTimersByTimeAsync(61_000);
