@@ -1,0 +1,276 @@
+.page {
+  min-height: 100dvh;
+  padding: 28px clamp(16px, 4vw, 48px) 48px;
+  max-width: 1200px;
+  margin: 0 auto;
+  color: var(--ink);
+}
+
+.head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-bottom: 20px;
+}
+
+.kicker {
+  font-family: var(--comic);
+  letter-spacing: 0.06em;
+  color: var(--yellow);
+  font-size: 18px;
+  margin: 0;
+}
+
+.title {
+  font-family: var(--serif);
+  font-size: clamp(34px, 6vw, 56px);
+  line-height: 1;
+  margin: 4px 0 8px;
+}
+
+.lead {
+  color: var(--muted);
+  max-width: 62ch;
+  margin: 0;
+}
+
+.back {
+  color: var(--brand);
+  text-decoration: none;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 8px 14px;
+  white-space: nowrap;
+}
+
+.aviso {
+  border: 1px solid var(--accent);
+  background: rgba(255, 154, 92, 0.08);
+  color: var(--ink);
+  border-radius: 12px;
+  padding: 12px 14px;
+  margin: 0 0 16px;
+}
+
+.controls {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  align-items: center;
+  margin-bottom: 18px;
+}
+
+.speed {
+  display: inline-flex;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.speedBtn,
+.speedOn {
+  border: 0;
+  padding: 10px 14px;
+  font: inherit;
+  cursor: pointer;
+  background: transparent;
+  color: var(--muted);
+}
+
+.speedOn {
+  background: var(--brand);
+  color: var(--outline);
+  font-weight: 700;
+}
+
+.stats {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  margin-bottom: 18px;
+}
+
+.stat {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+}
+
+.statN {
+  font-family: var(--comic);
+  font-size: 34px;
+  letter-spacing: 0.03em;
+  color: var(--cyan);
+}
+
+.statL {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+.card {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 16px;
+  box-shadow: var(--glow);
+}
+
+.cardTitle {
+  margin: 0;
+  font-size: 18px;
+}
+
+.cardSub {
+  margin: 2px 0 12px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.vacio {
+  color: var(--faint);
+  margin: 0;
+}
+
+.reps {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 10px;
+}
+
+.rep,
+.repCaida {
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 10px 12px;
+  transition: border-color 0.3s, opacity 0.3s;
+}
+
+.repCaida {
+  border-color: var(--danger);
+  opacity: 0.7;
+}
+
+.repTop {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+}
+
+.repId {
+  font-family: var(--mono);
+  font-size: 14px;
+}
+
+.badgeOn,
+.badgeOff {
+  font-size: 11px;
+  border-radius: 999px;
+  padding: 2px 8px;
+  font-weight: 700;
+}
+
+.badgeOn {
+  background: rgba(79, 217, 154, 0.15);
+  color: var(--ok);
+}
+
+.badgeOff {
+  background: rgba(255, 107, 128, 0.15);
+  color: var(--danger);
+}
+
+.bar {
+  height: 8px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.06);
+  margin: 8px 0 6px;
+  overflow: hidden;
+}
+
+.bar span {
+  display: block;
+  height: 100%;
+  background: linear-gradient(90deg, var(--brand), var(--cyan));
+  transition: width 0.4s ease;
+}
+
+.repN {
+  margin: 0;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.logs {
+  background: #050909;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 14px 16px;
+}
+
+.logsTitle {
+  margin: 0 0 10px;
+  font-size: 16px;
+}
+
+.logList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  font-family: var(--mono);
+  font-size: 12.5px;
+  max-height: 420px;
+  overflow-y: auto;
+}
+
+.logOk,
+.logErr {
+  display: grid;
+  grid-template-columns: 112px 56px 1fr auto;
+  gap: 8px;
+  padding: 3px 0;
+  border-bottom: 1px dashed rgba(255, 255, 255, 0.05);
+}
+
+.logErr {
+  color: var(--danger);
+}
+
+.logT,
+.logN,
+.logMs {
+  color: var(--faint);
+}
+
+.logBad {
+  color: var(--danger);
+}
+
+@media (max-width: 640px) {
+  .stats {
+    grid-template-columns: 1fr;
+  }
+  .logOk,
+  .logErr {
+    grid-template-columns: 1fr auto;
+  }
+  .logT,
+  .logN {
+    display: none;
+  }
+}
