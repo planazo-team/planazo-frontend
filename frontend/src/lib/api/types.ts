@@ -36,11 +36,20 @@ export interface Api {
    * En modo negocio falla con `NEGOCIO_NO_REGISTRADO` si la cuenta no ha
    * registrado su negocio.
    */
-  loginGoogle(credential: string, modo?: Role): Promise<ApiResult<SessionUser>>;
+  loginGoogle(credential: string, modo?: Role, codigo?: string): Promise<ApiResult<SessionUser>>;
   /** Activa el modo negocio (NIT verificado) y deja la sesión en modo negocio. */
   registrarNegocio(credential: string, datos: DatosNegocio): Promise<ApiResult<SessionUser>>;
-  /** Cambia entre modo cliente y modo negocio con un token nuevo. */
-  cambiarModo(modo: Role): Promise<ApiResult<SessionUser>>;
+  /** Cambia entre modo cliente y modo negocio con un token nuevo. Con 2FA activo, a negocio pide `codigo`. */
+  cambiarModo(modo: Role, codigo?: string): Promise<ApiResult<SessionUser>>;
+  /**
+   * Verificación en dos pasos del modo negocio (app autenticadora). Si está
+   * activa, entrar en modo negocio responde `2FA_REQUERIDO` hasta mandar el código.
+   */
+  dosPasos: {
+    estado(): Promise<ApiResult<{ activo: boolean }>>;
+    iniciar(): Promise<ApiResult<{ otpauthUri: string; secreto: string }>>;
+    confirmar(codigo: string): Promise<ApiResult<{ activo: true }>>;
+  };
   /** Un negocio crea su lugar; devuelve el lugar y la sesión actualizada (con placeId). */
   createBusiness(input: NewPlaceInput): Promise<ApiResult<{ place: Place; user: SessionUser }>>;
 
