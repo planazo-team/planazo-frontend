@@ -40,7 +40,7 @@ function Panel({ placeId }: { placeId: string }) {
   }, [placeId]);
 
   useEffect(() => {
-    load();
+    void load();
   }, [load]);
 
   // RT-1 en el panel: cada reserva y cada cambio de inventario llegan solos.

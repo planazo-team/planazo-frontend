@@ -48,7 +48,7 @@ export default function PromosPage() {
   }, []);
 
   useEffect(() => {
-    load();
+    void load();
   }, [load]);
 
   useRtEvent<Promo>(['PROMO.PUSH'], (e) => {

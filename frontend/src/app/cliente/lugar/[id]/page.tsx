@@ -38,7 +38,7 @@ export default function LugarPage() {
   const load = useCallback(() => api.getPlace(id).then(setPlace), [id]);
 
   useEffect(() => {
-    load();
+    void load();
   }, [load]);
 
   // Suscripción a esta ficha: cualquier cambio de inventario llega aquí (RT-1).

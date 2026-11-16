@@ -26,7 +26,7 @@ export default function PlanesPage() {
   }, []);
 
   useEffect(() => {
-    load();
+    void load();
   }, [load]);
 
   // Llega a `user:<id>` cuando una reserva propia se confirma o se gana un cupón.
