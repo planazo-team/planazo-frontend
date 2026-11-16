@@ -83,7 +83,7 @@ export default function JuegoPage() {
 
   // Los bonos "solo ganadores" que están en juego ahora mismo.
   useEffect(() => {
-    api.activePromos().then((ps) => setPremios(ps.filter((p) => p.soloGanadores)));
+    void api.activePromos().then((ps) => setPremios(ps.filter((p) => p.soloGanadores)));
   }, []);
 
   /* ---------- conexión ---------- */
@@ -120,7 +120,7 @@ export default function JuegoPage() {
       onError: (m) => escribir('⚠️ ' + m),
       onConexion: (s) => {
         setConexion(s);
-        if (s === 'en_linea') c.listarSalas().then(setSalas);
+        if (s === 'en_linea') void c.listarSalas().then(setSalas);
       },
     });
     refrescarLeaderboard();
@@ -132,7 +132,7 @@ export default function JuegoPage() {
     } catch {
       /* sin almacenamiento */
     }
-    c.listarSalas().then((ss) => {
+    void c.listarSalas().then((ss) => {
       setSalas(ss);
       // Pestaña nueva (otra vez desde el QR, o la app se cerró): esta pestaña no
       // guardó nada, pero el servidor sabe en qué sala sigo. Volver a ella.

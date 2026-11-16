@@ -171,7 +171,7 @@ export default function AgentePage() {
         style={{ position: 'sticky', bottom: 'calc(var(--nav-h) + 12px + env(safe-area-inset-bottom))', zIndex: 5 }}
         onSubmit={(e) => {
           e.preventDefault();
-          ask(text);
+          void ask(text);
         }}
       >
         <div className="row" style={{ alignItems: 'flex-end' }}>
@@ -185,13 +185,13 @@ export default function AgentePage() {
               onKeyDown={(e) => {
                 if (e.key === 'Enter' && !e.shiftKey) {
                   e.preventDefault();
-                  ask(text);
+                  void ask(text);
                 }
               }}
               placeholder="Ej.: algo tranquilo para dos, sin gastar mucho"
             />
           </label>
-          <button className="btn icon" disabled={busy || !text.trim()} aria-label="Enviar" style={{ width: 52, minHeight: 48 }}>
+          <button type="submit" className="btn icon" disabled={busy || !text.trim()} aria-label="Enviar" style={{ width: 52, minHeight: 48 }}>
             <Icon name="send" />
           </button>
         </div>

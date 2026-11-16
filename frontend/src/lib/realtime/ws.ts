@@ -1,6 +1,11 @@
 import type { RtEvent } from '../types';
 import type { ClientMsg, Transport, TransportHandlers } from './client';
 
+/** Número en [0, 1) con el generador criptográfico del navegador (solo para el jitter del backoff). */
+function azar(): number {
+  return crypto.getRandomValues(new Uint32Array(1))[0] / 2 ** 32;
+}
+
 /**
  * Transporte WebSocket contra el Realtime Gateway (modo live).
  *
@@ -50,7 +55,7 @@ export function wsTransport(url: string, getToken: () => string | undefined): Tr
       ws = null;
       h.onClose();
       if (stopped) return;
-      const delay = Math.min(10_000, 500 * 2 ** attempt++) + Math.random() * 300;
+      const delay = Math.min(10_000, 500 * 2 ** attempt++) + azar() * 300;
       retry = setTimeout(open, delay);
     };
 

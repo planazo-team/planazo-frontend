@@ -2094,7 +2094,6 @@ em.serif,
 
 /* onomatopeyas */
 .boom {
-  display: inline-block;
   font-family: var(--comic);
   font-size: 30px;
   letter-spacing: 0.04em;

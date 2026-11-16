@@ -321,7 +321,7 @@ function PromoLauncher({ placeId, placeName, zone }: { placeId: string; placeNam
           style={{ gap: 12 }}
           onSubmit={(e) => {
             e.preventDefault();
-            launch();
+            void launch();
           }}
         >
           <div className="chips" aria-label="Ideas rápidas">
@@ -390,7 +390,7 @@ function PromoLauncher({ placeId, placeName, zone }: { placeId: string; placeNam
               {error}
             </p>
           )}
-          <button className={`btn block ${soloGanadores ? 'yellow' : 'hero'}`} disabled={busy || stock < 1 || !title.trim()} style={{ minHeight: 52 }}>
+          <button type="submit" className={`btn block ${soloGanadores ? 'yellow' : 'hero'}`} disabled={busy || stock < 1 || !title.trim()} style={{ minHeight: 52 }}>
             <Icon name={soloGanadores ? 'trophy' : 'bolt'} />
             {busy ? 'Lanzando…' : soloGanadores ? 'Lanzar bono para ganadores' : 'Lanzar ahora'}
           </button>
@@ -465,7 +465,7 @@ function EventForm({
         style={{ marginTop: 10 }}
         onSubmit={(e) => {
           e.preventDefault();
-          submit();
+          void submit();
         }}
       >
         <label className="field">
@@ -482,7 +482,7 @@ function EventForm({
             <input type="number" min={1} max={500} value={capacity} onChange={(e) => setCapacity(Number(e.target.value))} />
           </label>
         </div>
-        <button className="btn ghost block" disabled={busy || !title.trim()}>
+        <button type="submit" className="btn ghost block" disabled={busy || !title.trim()}>
           {busy ? 'Publicando…' : 'Publicar evento'}
         </button>
       </form>

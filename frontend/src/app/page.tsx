@@ -189,7 +189,7 @@ export default function LoginPage() {
                 style={{ gap: 10 }}
                 onSubmit={(e) => {
                   e.preventDefault();
-                  if (nombreDemo.trim().length >= 2) entrar(credencialDemo(nombreDemo.trim()));
+                  if (nombreDemo.trim().length >= 2) void entrar(credencialDemo(nombreDemo.trim()));
                 }}
               >
                 <label className="field">
@@ -202,7 +202,7 @@ export default function LoginPage() {
                     maxLength={30}
                   />
                 </label>
-                <button className="btn block" disabled={busy || nombreDemo.trim().length < 2}>
+                <button type="submit" className="btn block" disabled={busy || nombreDemo.trim().length < 2}>
                   Entrar en modo demo <Icon name="arrowRight" />
                 </button>
               </form>

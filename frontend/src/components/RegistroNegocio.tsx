@@ -90,7 +90,7 @@ export function RegistroNegocio({
         </p>
       )}
 
-      <button className="btn block yellow" disabled={busy} style={{ minHeight: 54, fontSize: 17 }}>
+      <button type="submit" className="btn block yellow" disabled={busy} style={{ minHeight: 54, fontSize: 17 }}>
         {busy ? 'Verificando…' : 'Registrar y entrar a mi negocio'}
         <Icon name="arrowRight" />
       </button>

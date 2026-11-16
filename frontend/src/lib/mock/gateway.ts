@@ -20,9 +20,14 @@ interface Conn {
   h: TransportHandlers;
 }
 
+/** `n` caracteres base 36 al azar, con el generador criptográfico del navegador. */
+function azarBase36(n: number): string {
+  return Array.from(crypto.getRandomValues(new Uint8Array(n)), (b) => (b % 36).toString(36)).join('');
+}
+
 export function uid(): string {
   if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') return crypto.randomUUID();
-  return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+  return `${Date.now().toString(36)}-${azarBase36(8)}`;
 }
 
 class MockGateway {
