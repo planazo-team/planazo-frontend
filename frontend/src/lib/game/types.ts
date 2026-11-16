@@ -24,6 +24,8 @@ export interface ResumenSala {
   cantidadJugadores: number;
   estado: EstadoSala;
   nombresJugadores: string[];
+  /** Mismo orden que `nombresJugadores`: así la app sabe si ya estás en la sala y te deja volver. */
+  idsJugadores?: string[];
 }
 
 /** Snapshot de una serpiente en un tick. */
@@ -35,6 +37,8 @@ export interface JugadorEnSala {
   estado: EstadoSerpiente;
   puntaje: number;
   conectado: boolean;
+  /** Salió de la pantalla: su serpiente está quieta esperándolo (máx. 60 s). Ausente en versiones viejas de game. */
+  pausado?: boolean;
 }
 
 export interface PuntajeJugador {
@@ -106,5 +110,9 @@ export interface GameClient {
   suscribirSala(salaId: string): void;
   desuscribirSala(): void;
   mover(direccion: Direccion): void;
+  /** El jugador salió de la pantalla: su serpiente se queda quieta donde va. */
+  pausar(): void;
+  /** Volvió: su serpiente sigue donde iba. */
+  reanudar(): void;
   cerrar(): void;
 }

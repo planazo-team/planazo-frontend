@@ -6,7 +6,7 @@ import { boom, confeti } from '@/components/fx/eggs';
 import { Icon, SpiderArt } from '@/components/Icon';
 import { coloresDe, TableroSnake, textoEstado, textoResultado } from '@/components/TableroSnake';
 import { api } from '@/lib/api';
-import { CLAVE_SALA, crearGameClient, salirDeSalaGuardada } from '@/lib/game/client';
+import { CLAVE_SALA, crearGameClient, fueraDePantalla, salirDeSalaGuardada } from '@/lib/game/client';
 import type {
   Direccion,
   EntradaLeaderboard,
@@ -123,7 +123,6 @@ export default function JuegoPage() {
         if (s === 'en_linea') c.listarSalas().then(setSalas);
       },
     });
-    c.listarSalas().then(setSalas);
     refrescarLeaderboard();
 
     // Recarga de la página: volver a la misma sala (SNK-07). sessionStorage es por pestaña.
@@ -133,6 +132,14 @@ export default function JuegoPage() {
     } catch {
       /* sin almacenamiento */
     }
+    c.listarSalas().then((ss) => {
+      setSalas(ss);
+      // Pestaña nueva (otra vez desde el QR, o la app se cerró): esta pestaña no
+      // guardó nada, pero el servidor sabe en qué sala sigo. Volver a ella.
+      if (guardada || salaRef.current || client.current !== c) return;
+      const mia = ss.find((s) => s.idsJugadores?.includes(jugadorIdRef.current));
+      if (mia) void unirse(mia.id, true);
+    });
     if (guardada) {
       const t = setTimeout(() => void unirse(guardada!, true), 600);
       return () => {
@@ -229,6 +236,40 @@ export default function JuegoPage() {
     return () => window.removeEventListener('pagehide', alIrse);
   }, []);
 
+  /*
+   * Salir de la pantalla (otra pestaña, otra app, la ventana sin foco) pausa tu
+   * serpiente donde va; al volver sigue desde ahí. La partida no se detiene para
+   * los demás: tu serpiente queda quieta como obstáculo, máximo 60 s.
+   */
+  const [pausado, setPausado] = useState(false);
+  const pausadoRef = useRef(false);
+  useEffect(() => {
+    const revisar = () => {
+      const fuera = fueraDePantalla();
+      if (fuera === pausadoRef.current) return;
+      pausadoRef.current = fuera;
+      setPausado(fuera);
+      if (!salaRef.current) return;
+      if (fuera) {
+        client.current?.pausar();
+        return;
+      }
+      client.current?.reanudar();
+      if (estadoRef.current?.estado === 'EN_CURSO') {
+        boom('¡DE VUELTA!', window.innerWidth / 2, window.innerHeight * 0.35);
+        escribir('Volviste: tu serpiente sigue donde iba.');
+      }
+    };
+    document.addEventListener('visibilitychange', revisar);
+    window.addEventListener('blur', revisar);
+    window.addEventListener('focus', revisar);
+    return () => {
+      document.removeEventListener('visibilitychange', revisar);
+      window.removeEventListener('blur', revisar);
+      window.removeEventListener('focus', revisar);
+    };
+  }, [escribir]);
+
   /* ---------- teclado y d-pad ---------- */
   const mover = useCallback((direccion: Direccion) => {
     // La serpiente avanza sola en el servidor: cada tecla solo la hace girar.
@@ -307,7 +348,9 @@ export default function JuegoPage() {
               salas.map((s) => {
                 const esActual = s.id === salaActualId;
                 const lleno = s.cantidadJugadores >= s.capacidad;
-                const puede = !esActual && !lleno && s.estado !== 'EN_CURSO';
+                // Sigo en esa sala (salí de la pantalla en plena partida): mi lugar sigue siendo mío.
+                const mia = !esActual && !!s.idsJugadores?.includes(jugadorId);
+                const puede = mia || (!esActual && !lleno && s.estado !== 'EN_CURSO');
                 const nombres = s.nombresJugadores.length ? s.nombresJugadores.join(', ') : 'vacía';
                 const multiverso = s.codigo === 'Tierra-616';
                 return (
@@ -323,8 +366,8 @@ export default function JuegoPage() {
                       </small>
                       <small style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{nombres}</small>
                     </div>
-                    <button className={`btn sm${esActual ? ' yellow' : ''}`} disabled={!puede} onClick={() => void unirse(s.id)}>
-                      {esActual ? 'Aquí' : lleno ? 'Llena' : 'Unirme'}
+                    <button className={`btn sm${esActual || mia ? ' yellow' : ''}`} disabled={!puede} onClick={() => void unirse(s.id, mia)}>
+                      {esActual ? 'Aquí' : mia ? 'Volver' : lleno ? 'Llena' : 'Unirme'}
                     </button>
                   </div>
                 );
@@ -373,6 +416,13 @@ export default function JuegoPage() {
                 ultimoResultado={ultimoResultado}
                 textoVacio={salaActualId ? 'Entrando a la sala…' : 'Elige una sala para jugar'}
               />
+              {pausado && enPartida && salaActualId && (
+                <div className="mj-pausa" role="status" onClick={() => window.focus()}>
+                  <b>EN PAUSA</b>
+                  <span>Tu serpiente te espera quieta donde iba (máximo 60 s). Los demás siguen jugando: vuelve y sigues desde ahí.</span>
+                  <span>🕷️ Toca aquí para volver</span>
+                </div>
+              )}
             </div>
             <div className="mj-dpad" aria-label="Controles táctiles">
               <button className="up" onPointerDown={() => mover('ARRIBA')} disabled={!enPartida} aria-label="Arriba">
@@ -391,7 +441,8 @@ export default function JuegoPage() {
             <div className="mj-ayuda" style={{ marginTop: 10 }}>
               Tu serpiente avanza sola: con <kbd>←</kbd> <kbd>↑</kbd> <kbd>→</kbd> <kbd>↓</kbd> o <kbd>W</kbd> <kbd>A</kbd> <kbd>S</kbd> <kbd>D</kbd> (o
               las flechas de la pantalla) la haces girar. La partida empieza sola cuando la sala está <b>llena</b>. Si tu cabeza toca
-              un borde o cualquier cuerpo, mueres; gana la última serpiente en pie. Si te sales de la app, liberas tu cupo.
+              un borde o cualquier cuerpo, mueres; gana la última serpiente en pie. Si cambias de pestaña o de app, tu serpiente se
+              <b> pausa</b> donde va (hasta 60 s) y, al volver, sigue desde ahí; los demás no paran.
             </div>
           </div>
 
@@ -405,7 +456,7 @@ export default function JuegoPage() {
                 .map((j) => {
                   const marca =
                     estado.estado === 'EN_CURSO' || ultimoResultado
-                      ? `${j.puntaje} pts · ${textoEstadoSerpiente[j.estado] ?? j.estado}`
+                      ? `${j.puntaje} pts · ${j.pausado && j.estado !== 'ELIMINADA' ? 'en pausa ⏸️' : (textoEstadoSerpiente[j.estado] ?? j.estado)}`
                       : 'en la sala';
                   return (
                     <div key={j.jugadorId} className={`mj-jugador${j.jugadorId === jugadorId ? ' yo' : ''}`} style={{ borderColor: color[j.jugadorId] }}>
