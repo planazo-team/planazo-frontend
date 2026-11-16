@@ -114,3 +114,34 @@ Todas las respuestas de error son `{ code, message }` con un mensaje para el usu
 2. Si fue la llave de Anthropic: revocarla en la consola de Anthropic y crear otra.
 3. Si quedó en un commit: **no basta con borrarlo en otro commit.** Hay que reescribir el historial (`git filter-repo`) y forzar el push, o dar el secreto por quemado y rotarlo. Rotar es más rápido y más seguro.
 4. Abrir un issue con la etiqueta `bug` describiendo qué se filtró y qué se rotó, sin pegar el secreto.
+
+---
+
+## 7 · Tácticas de seguridad arquitectónica (Bass, Clements & Kazman)
+
+En el marco de la arquitectura de software de Bass, Clements & Kazman, las tácticas de seguridad de Planazo se estructuran en tres familias primarias:
+
+### 7.1 · Detectar ataques (Detect Attacks)
+* **Detección de patrones y ráfagas anómalas (ESC-03):** El API Gateway implementa un contador de errores (HTTP 401 y 429) por dirección IP utilizando una ventana deslizante de 1 minuto en Redis (`ip:err4xx:<ip>`). Si una IP acumula más de 50 fallos en ese lapso (indicativo de escaneo o fuerza bruta), se activa la detección de ataque.
+* **Emisión de alertas de seguridad:** Ante la superación del umbral, el gateway emite de forma síncrona un evento estructurado `[ALERTA_SEGURIDAD]` para ser consumido por el recolector de métricas/logs y reflejado en el tablero técnico en menos de 60 segundos.
+* **Bitácora de auditoría forense (`audit_log`):** Registro append-only de todas las operaciones sensibles del negocio con IP de origen, sujeto de identidad (`userId`), acción ejecutada, fecha y correlation-id (`x-correlation-id`).
+
+### 7.2 · Resistir ataques (Resist Attacks)
+* **Autenticar actores (ESC-01):**
+  - **Identidad federada y delegada:** Login exclusivamente a través de Google OpenID Connect (`POST /api/auth/google`). El backend valida la firma criptográfica con las llaves públicas de Google, el emisor, audiencia y verificación de correo, eliminando la necesidad de almacenar contraseñas en Planazo.
+  - **Reautenticación para acciones sensibles:** Operaciones de alta criticidad (activar modo negocio y registro mercantil) exigen un ID Token emitido hace menos de 10 minutos por Google.
+* **Autorizar actores (ESC-02):**
+  - **Control de acceso stateless:** Todo acceso a endpoints protegidos exige un JWT válido firmado por el API Gateway (ADR-05).
+  - **Verificación de sujeto en dominio:** El microservicio Minijuego (Spring Security OAuth2 Resource Server) y su interceptor WebSocket STOMP (`StompAuthChannelInterceptor`) rechazan cualquier frame `CONNECT` o petición REST donde el identificador objetivo no coincida con el sujeto del token (`jugadorId == jwt.sub`), respondiendo con `403 Forbidden` sin invocar la capa de negocio.
+* **Resistir ataques de fuerza bruta y DoS:**
+  - **Bloqueo temporal de IP en Redis:** Bloqueo automático durante 10 minutos (`ip:blocked:<ip>` con TTL 600 s) para cualquier IP detectada como agresora, respondiendo con `429 Too Many Requests` (`IP_BLOQUEADA`) directamente en el middleware perimetral.
+  - **Rate Limiting:** Límite preventivo de 600 req/min por IP en producción configurado mediante `express-rate-limit`.
+* **Confianza perimetral e integridad de mensajes:**
+  - Validación de header secreto `x-gateway-key` en servicios internos para evitar que peticiones que eludan el gateway puedan inyectar headers de identidad.
+  - Sanitización estricta de headers en el gateway: cualquier header `x-user-*` enviado por el cliente es sobrescrito por los datos legítimos del JWT.
+
+### 7.3 · Reaccionar y recuperarse de ataques (React & Recover)
+* **Trazabilidad de incidentes:** Cada petición externa recibe un `x-correlation-id` (UUID v4) que se propaga por HTTP hacia los microservicios aguas abajo y se estampa en los eventos publicados en Redis y en cada línea de la bitácora de auditoría. Permite aislar y rastrear cualquier vector de ataque de punta a punta.
+* **Inmutabilidad y protección de auditoría:** La tabla `audit_log` tiene revocado cualquier privilegio de `UPDATE` o `DELETE` para el usuario de la aplicación, garantizando que un compromiso a nivel de aplicación no pueda borrar la evidencia histórica.
+* **Procedimiento de rotación rápida de secretos:** Procedimiento documentado (§6) para rotar `JWT_SECRET` y revocar instantáneamente todas las sesiones activas en caso de compromiso.
+
