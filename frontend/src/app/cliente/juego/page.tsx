@@ -78,7 +78,7 @@ export default function JuegoPage() {
   }, []);
 
   const refrescarLeaderboard = useCallback(() => {
-    client.current?.leaderboard(10).then(setLeaderboard);
+    void client.current?.leaderboard(10).then(setLeaderboard);
   }, []);
 
   // Los bonos "solo ganadores" que están en juego ahora mismo.
@@ -171,7 +171,7 @@ export default function JuegoPage() {
         ? `¡Ganaste en ${r.salaCodigo}! La partida terminó.`
         : `Perdiste en ${r.salaCodigo}${yo?.posicionFinal ? ` (puesto ${yo.posicionFinal})` : ''}. Ganó ${r.ganadorJugadorNombre ?? 'nadie'}.`,
     );
-    client.current?.listarSalas().then(setSalas);
+    void client.current?.listarSalas().then(setSalas);
   }
 
   /* ---------- salas ---------- */
@@ -201,7 +201,7 @@ export default function JuegoPage() {
     c.suscribirSala(salaId);
     const faltan = r.sala.capacidad - r.sala.cantidadJugadores;
     escribir(`${esReconexion ? 'Reconectado a' : 'Unido a'} ${r.sala.codigo}.` + (faltan > 0 ? ` Faltan ${faltan} jugador(es) para empezar.` : ''));
-    c.listarSalas().then(setSalas);
+    void c.listarSalas().then(setSalas);
   }
 
   async function salirDeSala() {
@@ -219,7 +219,7 @@ export default function JuegoPage() {
     }
     await c.salir(salaId);
     escribir('Saliste de la sala.');
-    c.listarSalas().then(setSalas);
+    void c.listarSalas().then(setSalas);
   }
 
   /*
