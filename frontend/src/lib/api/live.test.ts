@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { credencialDeFirebase } from '../firebase';
 import { getSession, setSession } from '../session';
 import { liveApi } from './live';
 
@@ -34,6 +35,17 @@ describe('API real (gateway)', () => {
     const r = await liveApi.loginGoogle('cred', 'negocio', '123456');
     expect(r).toEqual({ ok: true, data: { id: 'c-1', name: 'Ana', role: 'cliente', negocio: true, token: 'jwt' } });
     expect(ultima().body).toEqual({ credential: 'cred', modo: 'negocio', codigo: '123456' });
+
+    const credFb = credencialDeFirebase({ uid: 'fb1', displayName: 'Luis', email: 'luis@test.com' }, undefined, 'tok-fb');
+    const rFb = await liveApi.loginGoogle(credFb, 'cliente');
+    expect(rFb.ok && rFb.data.token).toBe('tok-fb');
+    const regFb = await liveApi.registrarNegocio(credFb, {
+      legalName: 'Café Planazo SAS',
+      nit: '900.123.456-8',
+      phone: '3001234567',
+      acceptTerms: true,
+    });
+    expect(regFb.ok && regFb.data.role).toBe('negocio');
   });
 
   it('registro de negocio, cambio de modo y creación del lugar', async () => {
