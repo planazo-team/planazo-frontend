@@ -43,7 +43,7 @@ Implementar un mecanismo coordinado de detección en el borde con **Redis** como
      - `CREAR_RESERVA` (`POST /api/reservations`)
      - `CANCELAR_RESERVA` (`DELETE /api/reservations/:id`)
    - Cada entrada contiene: `id` (UUID v4), `at` (epoch ms), `userId` (sujeto autenticado o anónimo), `action`, `ip`, `correlationId` (del header `x-correlation-id`) y `details` (método, ruta, status).
-   - En base de datos se revoca explícitamente cualquier permiso de `UPDATE` o `DELETE` al rol de la aplicación sobre la tabla `booking.audit_log`, asegurando inmutabilidad.
+   - Pendiente: una tabla `booking.audit_log` sin permisos de `UPDATE` ni `DELETE` para el rol de la aplicación. Hoy cada entrada queda como línea `[AUDIT_LOG]` en el log del gateway.
 
 ---
 

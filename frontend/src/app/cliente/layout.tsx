@@ -10,7 +10,7 @@ import { Avatar } from '@/components/Avatar';
 import { Icon } from '@/components/Icon';
 import { PromoToast } from '@/components/PromoToast';
 import { limpiarTrazasSeguridad } from '@/lib/autorizacion';
-import { cerrarSesionFirebase } from '@/lib/firebase';
+
 import { salirDeSalaGuardada } from '@/lib/game/client';
 import { useRtEvent, useTopics } from '@/lib/hooks';
 import { setSession, type SessionUser } from '@/lib/session';
@@ -43,7 +43,6 @@ function ClientShell({ user, children }: { user: SessionUser; children: React.Re
           onClick={async () => {
             // Primero se sale de la sala del Snake (si estaba en una), después de la sesión.
             await salirDeSalaGuardada();
-            await cerrarSesionFirebase();
             limpiarTrazasSeguridad();
             setSession(null);
             // Recarga completa: la conexión en vivo y todo lo que estaba en memoria

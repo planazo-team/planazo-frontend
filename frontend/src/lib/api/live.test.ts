@@ -1,5 +1,4 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { credencialDeFirebase } from '../firebase';
 import { getSession, setSession } from '../session';
 import { liveApi } from './live';
 
@@ -36,18 +35,10 @@ describe('API real (gateway)', () => {
     expect(r).toEqual({ ok: true, data: { id: 'c-1', name: 'Ana', role: 'cliente', negocio: true, token: 'jwt' } });
     expect(ultima().body).toEqual({ credential: 'cred', modo: 'negocio', codigo: '123456' });
 
-    const credFb = credencialDeFirebase({ uid: 'fb1', displayName: 'Luis', email: 'luis@test.com' }, undefined, 'tok-fb');
+    // Sin servidor no hay sesión: nunca se entra con datos simulados.
     fetchMock.mockRejectedValueOnce(new Error('offline'));
-    const rFb = await liveApi.loginGoogle(credFb, 'cliente');
-    expect(rFb.ok && rFb.data.token).toBe('fb:tok-fb');
-    fetchMock.mockRejectedValueOnce(new Error('offline'));
-    const regFb = await liveApi.registrarNegocio(credFb, {
-      legalName: 'Café Planazo SAS',
-      nit: '900.123.456-8',
-      phone: '3001234567',
-      acceptTerms: true,
-    });
-    expect(regFb.ok && regFb.data.role).toBe('negocio');
+    const sinRed = await liveApi.loginGoogle('cred', 'cliente');
+    expect(sinRed).toMatchObject({ ok: false, code: 'SIN_CONEXION' });
   });
 
   it('registro de negocio, cambio de modo y creación del lugar', async () => {

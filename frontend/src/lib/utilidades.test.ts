@@ -5,53 +5,10 @@ import {
   verificarPermisoRol,
 } from './autorizacion';
 import { coverOf, coverUrl, logoOf } from './brand';
-import {
-  cerrarSesionFirebase,
-  credencialDeFirebase,
-  entrarConCorreoFirebase,
-  entrarConGoogleFirebase,
-  esCredencialFirebase,
-  mensajeErrorFirebase,
-  obtenerAppFirebase,
-  obtenerAuthFirebase,
-  registrarConCorreoFirebase,
-  tokenDeCredencialFirebase,
-} from './firebase';
 import { cargarGoogle, credencialDemo, leerCredencial } from './google';
 import { digitoVerificacion, problemaNit, razonSocialValida, telefonoValido } from './negocio';
 import { buildSeed, CATEGORY_LABEL, ZONES } from './seed';
 import { getSession, patchSession, setSession } from './session';
-
-vi.mock('firebase/app', () => {
-  const apps: object[] = [];
-  return {
-    getApps: () => apps,
-    getApp: () => apps[0],
-    initializeApp: (cfg: object) => {
-      const app = { cfg };
-      apps.push(app);
-      return app;
-    },
-  };
-});
-
-vi.mock('firebase/auth', () => ({
-  getAuth: (app: object) => ({ app }),
-  GoogleAuthProvider: class {
-    setCustomParameters() {}
-  },
-  signInWithPopup: vi.fn(async () => ({
-    user: { uid: 'uid-google', displayName: 'Ana Google', email: 'ana@gmail.com', getIdToken: async () => 'tok-g' },
-  })),
-  signInWithEmailAndPassword: vi.fn(async (_auth: unknown, email: string) => ({
-    user: { uid: 'uid-mail', displayName: null, email, getIdToken: async () => 'tok-m' },
-  })),
-  createUserWithEmailAndPassword: vi.fn(async (_auth: unknown, email: string) => ({
-    user: { uid: 'uid-new', displayName: null, email, getIdToken: async () => 'tok-n' },
-  })),
-  updateProfile: vi.fn(async () => {}),
-  signOut: vi.fn(async () => {}),
-}));
 
 describe('registro de negocio', () => {
   it('calcula el dígito de verificación del NIT como la DIAN', () => {
@@ -108,33 +65,6 @@ describe('credencial de Google', () => {
     await expect(p1).resolves.toBe(gis);
     await expect(cargarGoogle()).resolves.toBe(gis); // ya cargado: sale directo
     delete window.google;
-  });
-
-  it('autentica y arma credenciales desde Firebase (Google y correo)', async () => {
-    const app1 = obtenerAppFirebase();
-    const app2 = obtenerAppFirebase();
-    expect(app1).toBe(app2);
-    expect(obtenerAuthFirebase()).toBeTruthy();
-
-    const credG = await entrarConGoogleFirebase();
-    expect(esCredencialFirebase(credG)).toBe(true);
-    expect(tokenDeCredencialFirebase(credG)).toBe('fb:tok-g');
-    expect(leerCredencial(credG)).toEqual({ sub: 'uid-google', name: 'Ana Google', email: 'ana@gmail.com' });
-
-    const credM = await entrarConCorreoFirebase('pepe@correo.com', '123456');
-    expect(leerCredencial(credM)).toEqual({ sub: 'uid-mail', name: 'pepe', email: 'pepe@correo.com' });
-
-    const credN = await registrarConCorreoFirebase('Camila', 'cami@correo.com', '123456');
-    expect(leerCredencial(credN)).toEqual({ sub: 'uid-new', name: 'Camila', email: 'cami@correo.com' });
-
-    const sinToken = credencialDeFirebase({ uid: 'u-x' });
-    expect(tokenDeCredencialFirebase(sinToken)).toBe('fb:sesion');
-    expect(tokenDeCredencialFirebase('otra')).toBeUndefined();
-
-    await expect(cerrarSesionFirebase()).resolves.toBeUndefined();
-    expect(mensajeErrorFirebase({ code: 'auth/invalid-credential' })).toMatch(/no coinciden/);
-    expect(mensajeErrorFirebase({ code: 'desconocido' })).toMatch(/No pudimos autenticar/);
-    expect(mensajeErrorFirebase(null)).toMatch(/No pudimos autenticar/);
   });
 });
 

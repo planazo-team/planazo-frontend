@@ -21,7 +21,7 @@ Desplegar balanceadores de carga dedicados (`planazo-balancer`: `lb-gateway`, `l
 
 1. **Algoritmo y chequeo de salud activo:**
    - Reparto **round-robin** entre las instancias registradas en `BACKENDS`.
-   - Sondeo periódico contra `GET /health` de cada réplica; si una réplica falla o deja de responder (por ejemplo, al activar `POST /api/caos/apagar`), el balanceador la marca como `sano: false` y redirige inmediatamente el tráfico hacia las réplicas sanas restantes.
+   - Sondeo periódico contra `GET /health` de cada réplica; si una réplica falla o deja de responder (por ejemplo, al activar `POST /api/health/caos`), el balanceador la marca como `sano: false` y redirige inmediatamente el tráfico hacia las réplicas sanas restantes.
 2. **Sin `keep-alive` en llamadas internas (`forward.ts`):**
    - El `api-gateway` utiliza un `http.Agent({ keepAlive: false })` hacia los servicios internos para garantizar que cada petición sea distribuida por el balanceador y no quede fijada a un único socket TCP persistente.
 3. **Trazabilidad de réplica (`x-served-by` y `x-upstream-served-by`):**

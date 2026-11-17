@@ -1,5 +1,4 @@
 import { backend } from '../mock/services';
-import { tokenDeCredencialFirebase } from '../firebase';
 import { leerCredencial } from '../google';
 import { problemaNit, razonSocialValida, telefonoValido } from '../negocio';
 import { getSession, patchSession, type Role, type SessionUser } from '../session';
@@ -19,17 +18,10 @@ function negocios(): Record<string, { nit: string; legalName: string }> {
 /** Misma forma de id que el gateway: `c-g…` en modo cliente y `n-g…` en modo negocio. */
 const cuentaDe = (sub: string) => `g${sub.replace(/[^A-Za-z0-9]/g, '').slice(-16)}`;
 
-function sesionMock(cuenta: string, name: string, modo: Role, token?: string): SessionUser {
+function sesionMock(cuenta: string, name: string, modo: Role): SessionUser {
   const id = `${modo === 'negocio' ? 'n' : 'c'}-${cuenta}`;
   const placeId = modo === 'negocio' ? backend().ownedPlace(id) : undefined;
-  return {
-    id,
-    name,
-    role: modo,
-    negocio: !!negocios()[cuenta],
-    ...(placeId ? { placeId } : {}),
-    ...(token ? { token } : {}),
-  };
+  return { id, name, role: modo, negocio: !!negocios()[cuenta], ...(placeId ? { placeId } : {}) };
 }
 
 function me() {
@@ -47,7 +39,7 @@ export const mockApi: Api = {
     if (modo === 'negocio' && !negocios()[cuenta]) {
       return { ok: false, status: 409, code: 'NEGOCIO_NO_REGISTRADO', error: 'Registra tu negocio para entrar al panel.' };
     }
-    return { ok: true, data: sesionMock(cuenta, perfil.name || perfil.email.split('@')[0], modo ?? 'cliente', tokenDeCredencialFirebase(credential)) };
+    return { ok: true, data: sesionMock(cuenta, perfil.name || perfil.email.split('@')[0], modo ?? 'cliente') };
   },
   registrarNegocio: async (credential, datos) => {
     const perfil = leerCredencial(credential);
@@ -67,7 +59,7 @@ export const mockApi: Api = {
     } catch {
       /* sin almacenamiento */
     }
-    return { ok: true, data: sesionMock(cuenta, perfil.name || perfil.email.split('@')[0], 'negocio', tokenDeCredencialFirebase(credential)) };
+    return { ok: true, data: sesionMock(cuenta, perfil.name || perfil.email.split('@')[0], 'negocio') };
   },
   cambiarModo: async (modo) => {
     const s = getSession();
@@ -76,7 +68,7 @@ export const mockApi: Api = {
     if (modo === 'negocio' && !negocios()[cuenta]) {
       return { ok: false, status: 403, code: 'NEGOCIO_NO_REGISTRADO', error: 'Primero registra tu negocio.' };
     }
-    return { ok: true, data: sesionMock(cuenta, s.name, modo, s.token) };
+    return { ok: true, data: sesionMock(cuenta, s.name, modo) };
   },
   // En el modo simulado no hay servidor que guarde el secreto: la activación se
   // puede recorrer, pero el código no se exige al entrar. El código de prueba es 123456.

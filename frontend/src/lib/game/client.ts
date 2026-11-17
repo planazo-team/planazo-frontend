@@ -1,6 +1,5 @@
 import { Client, type StompSubscription } from '@stomp/stompjs';
 import { config } from '../config';
-import { esSesionFirebase } from '../firebase';
 import { mockGame } from '../mock/game';
 import { realtime } from '../realtime';
 import { getSession } from '../session';
@@ -266,7 +265,7 @@ export async function salirDeSalaGuardada({ keepalive = false, olvidar = true } 
   }
   const s = getSession();
   if (!salaId || !s) return;
-  if (config.mode !== 'live' || esSesionFirebase(s.token)) {
+  if (config.mode !== 'live') {
     mockGame().salirSala(salaId, s.id);
     return;
   }
@@ -282,5 +281,5 @@ export async function salirDeSalaGuardada({ keepalive = false, olvidar = true } 
 }
 
 export function crearGameClient(): GameClient {
-  return config.mode === 'live' && !esSesionFirebase() ? new LiveGameClient() : new MockGameClient();
+  return config.mode === 'live' ? new LiveGameClient() : new MockGameClient();
 }
