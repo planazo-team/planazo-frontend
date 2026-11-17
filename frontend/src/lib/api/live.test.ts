@@ -38,7 +38,7 @@ describe('API real (gateway)', () => {
 
     const credFb = credencialDeFirebase({ uid: 'fb1', displayName: 'Luis', email: 'luis@test.com' }, undefined, 'tok-fb');
     const rFb = await liveApi.loginGoogle(credFb, 'cliente');
-    expect(rFb.ok && rFb.data.token).toBe('tok-fb');
+    expect(rFb.ok && rFb.data.token).toBe('fb:tok-fb');
     const regFb = await liveApi.registrarNegocio(credFb, {
       legalName: 'Café Planazo SAS',
       nit: '900.123.456-8',

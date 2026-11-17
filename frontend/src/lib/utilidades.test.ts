@@ -113,7 +113,7 @@ describe('credencial de Google', () => {
 
     const credG = await entrarConGoogleFirebase();
     expect(esCredencialFirebase(credG)).toBe(true);
-    expect(tokenDeCredencialFirebase(credG)).toBe('tok-g');
+    expect(tokenDeCredencialFirebase(credG)).toBe('fb:tok-g');
     expect(leerCredencial(credG)).toEqual({ sub: 'uid-google', name: 'Ana Google', email: 'ana@gmail.com' });
 
     const credM = await entrarConCorreoFirebase('pepe@correo.com', '123456');
@@ -123,7 +123,7 @@ describe('credencial de Google', () => {
     expect(leerCredencial(credN)).toEqual({ sub: 'uid-new', name: 'Camila', email: 'cami@correo.com' });
 
     const sinToken = credencialDeFirebase({ uid: 'u-x' });
-    expect(tokenDeCredencialFirebase(sinToken)).toBeUndefined();
+    expect(tokenDeCredencialFirebase(sinToken)).toBe('fb:sesion');
     expect(tokenDeCredencialFirebase('otra')).toBeUndefined();
 
     await expect(cerrarSesionFirebase()).resolves.toBeUndefined();
