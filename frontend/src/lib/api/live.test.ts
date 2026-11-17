@@ -37,8 +37,10 @@ describe('API real (gateway)', () => {
     expect(ultima().body).toEqual({ credential: 'cred', modo: 'negocio', codigo: '123456' });
 
     const credFb = credencialDeFirebase({ uid: 'fb1', displayName: 'Luis', email: 'luis@test.com' }, undefined, 'tok-fb');
+    fetchMock.mockRejectedValueOnce(new Error('offline'));
     const rFb = await liveApi.loginGoogle(credFb, 'cliente');
     expect(rFb.ok && rFb.data.token).toBe('fb:tok-fb');
+    fetchMock.mockRejectedValueOnce(new Error('offline'));
     const regFb = await liveApi.registrarNegocio(credFb, {
       legalName: 'Café Planazo SAS',
       nit: '900.123.456-8',

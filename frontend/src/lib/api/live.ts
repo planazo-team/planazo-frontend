@@ -71,14 +71,20 @@ const toSession = (r: AuthResponse): SessionUser => ({
 
 export const liveApi: Api = {
   loginGoogle: async (credential, modo, codigo) => {
-    if (esCredencialFirebase(credential)) return mockApi.loginGoogle(credential, modo, codigo);
     const r = await call<AuthResponse>('POST', '/api/auth/google', { credential, ...(modo ? { modo } : {}), ...(codigo ? { codigo } : {}) });
-    return r.ok ? { ok: true, data: toSession(r.data) } : r;
+    if (r.ok) return { ok: true, data: toSession(r.data) };
+    if (esCredencialFirebase(credential) && (r.code === 'CREDENCIAL_INVALIDA' || r.code === 'SIN_CONEXION')) {
+      return mockApi.loginGoogle(credential, modo, codigo);
+    }
+    return r;
   },
   registrarNegocio: async (credential, datos) => {
-    if (esCredencialFirebase(credential)) return mockApi.registrarNegocio(credential, datos);
     const r = await call<AuthResponse>('POST', '/api/auth/negocio/registro', { credential, ...datos });
-    return r.ok ? { ok: true, data: toSession(r.data) } : r;
+    if (r.ok) return { ok: true, data: toSession(r.data) };
+    if (esCredencialFirebase(credential) && (r.code === 'CREDENCIAL_INVALIDA' || r.code === 'SIN_CONEXION')) {
+      return mockApi.registrarNegocio(credential, datos);
+    }
+    return r;
   },
   cambiarModo: async (modo, codigo) => {
     if (esSesionFirebase()) return mockApi.cambiarModo(modo, codigo);
