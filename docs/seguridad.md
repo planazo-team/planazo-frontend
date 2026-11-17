@@ -128,10 +128,10 @@ En el marco de la arquitectura de software de Bass, Clements & Kazman, las táct
 
 ### 7.2 · Resistir ataques (Resist Attacks)
 * **Autenticar actores (ESC-01):**
-  - **Identidad federada y delegada:** Login exclusivamente a través de Google OpenID Connect (`POST /api/auth/google`). El backend valida la firma criptográfica con las llaves públicas de Google, el emisor, audiencia y verificación de correo, eliminando la necesidad de almacenar contraseñas en Planazo.
-  - **Reautenticación para acciones sensibles:** Operaciones de alta criticidad (activar modo negocio y registro mercantil) exigen un ID Token emitido hace menos de 10 minutos por Google.
+  - **Identidad federada y delegada (Firebase Auth + Google):** Login mediante Firebase Authentication (`planazo-auth`) y Google OpenID Connect (`POST /api/auth/google`). El API Gateway valida la firma criptográfica con las llaves públicas de Google y de Firebase SecureToken, el emisor, audiencia y expiración, y firma el JWT oficial de Planazo (`JWT_SECRET`).
+  - **Autenticación multifactor (2FA / TOTP) y reautenticación en modo negocio:** Activar el modo negocio exige verificar el NIT con dígito de verificación DIAN y una credencial reciente (< 10 min); además, el panel del negocio cuenta con verificación en dos pasos mediante código TOTP de 6 dígitos (`POST /api/auth/2fa/*`).
 * **Autorizar actores (ESC-02):**
-  - **Control de acceso stateless:** Todo acceso a endpoints protegidos exige un JWT válido firmado por el API Gateway (ADR-05).
+  - **Control de acceso stateless por rol (`cliente` | `negocio`) y por establecimiento (`placeId`):** Todo acceso a endpoints protegidos exige un JWT válido firmado por el API Gateway (ADR-05). El gateway valida en `role-auth.ts` que `cliente` solo pueda reservar, reclamar cupones y jugar, y que `negocio` solo pueda editar cupos, ver reservas de su lugar, crear eventos y lanzar promociones sobre su propio `placeId` (enviando `x-user-place-id` únicamente cuando `role === 'negocio'`).
   - **Verificación de sujeto en dominio:** El microservicio Minijuego (Spring Security OAuth2 Resource Server) y su interceptor WebSocket STOMP (`StompAuthChannelInterceptor`) rechazan cualquier frame `CONNECT` o petición REST donde el identificador objetivo no coincida con el sujeto del token (`jugadorId == jwt.sub`), respondiendo con `403 Forbidden` sin invocar la capa de negocio.
 * **Resistir ataques de fuerza bruta y DoS:**
   - **Bloqueo temporal de IP en Redis:** Bloqueo automático durante 10 minutos (`ip:blocked:<ip>` con TTL 600 s) para cualquier IP detectada como agresora, respondiendo con `429 Too Many Requests` (`IP_BLOQUEADA`) directamente en el middleware perimetral.

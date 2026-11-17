@@ -1,68 +1,59 @@
 # Planazo — estado de la aplicación
 
-Foto del sistema al **12 de octubre de 2026** (semana 4 del MVP de 8 semanas). Se actualiza con cada hito; el detalle de cada pieza está en [`contexto.md`](contexto.md) y en el README de cada repo.
+Foto del sistema al **16 de noviembre de 2026** (cierre del Sprint 2 — atributos de calidad). El detalle de cada servicio está en [`contexto.md`](contexto.md), las decisiones arquitectónicas en [`adr/`](adr/README.md) y el modelo de seguridad en [`seguridad.md`](seguridad.md).
 
 ## Resumen
 
-Los cinco servicios y el frontend están en producción y **los seis retos pasan contra producción** (`node planazo-infra/pruebas/produccion.mjs`: 19/19 el 12 de octubre). booking y promo ya guardan todo en PostgreSQL. Se entra solo con el nombre, un negocio puede crear su lugar desde la app y lanzar promociones *solo para ganadores* del minijuego. El frontend tiene un rediseño completo de estética cómic (Spider-Verse).
+Los cinco servicios, los balanceadores propios y el frontend están en producción y **cumplen los 6 retos funcionales más los 7 escenarios de calidad del Sprint 2 (ESC-01 a ESC-07)**:
 
-### Novedades del 12 de octubre
-
-- **booking**: PostgreSQL (esquema `booking`), `UPDATE ... WHERE version = $v` + `CHECK (taken <= capacity)`; `POST /places` y `GET /places/owned`; publica `PLACE.CREATED`.
-- **promo**: PostgreSQL (esquema `promo`); reclamo en un solo Lua (stock, un cupón por persona, solo ganadores); escucha `GAME.PARTIDA_FINALIZADA` y publica `PROMO.UNLOCKED`.
-- **realtime**: arreglado RT-2 (tras `RESUME` el cliente no quedaba suscrito); ticks del juego efímeros (no se guardan); `user:<id>` privado; CI en verde.
-- **game**: CORS restringido, `dev-token` apagado (404), salas de duelo (V2): Duelo Zona G, Duelo Zona T y Tierra-616.
-- **api-gateway**: `POST /api/auth/login` (solo nombre) y `POST /api/auth/negocio`; agente con el SDK oficial y `claude-opus-5-5` (salida estructurada).
-- **frontend**: rediseño, login por nombre, asistente para crear el lugar, bonos de ganadores, arreglado el pop-up tapado por el mapa y la barra inferior translúcida.
-
-### Verificado en producción (12 de octubre)
-
-CC-3: 25 reservas simultáneas con la misma versión → 1 confirmada, 24 `VERSION_CONFLICT`, sin sobreventa. RT-1: `PLACE.UPDATE` en vivo. RT-2: `REPLAY` en orden, sin duplicados, y siguen llegando eventos tras reanudar. CC-1: 60 personas contra stock 5 → 5 cupones. Un cupón por persona. CC-2: partida real de dos bots en una sala de duelo → ganador registrado; solo él reclama el bono de ganadores. Agente: ruta de 3 paradas.
+- **Seguridad (ESC-01, ESC-02, ESC-03):**
+  - Autenticación delegada con **Firebase Authentication (`planazo-auth`) y Google** (con soporte tanto de cuenta Google como de correo y contraseña), más **verificación en dos pasos (2FA / TOTP con QR)** para el panel del negocio.
+  - Autorización estricta por rol (`cliente` | `negocio`) y por establecimiento (`placeId`) tanto en el `api-gateway` (`role-auth.ts`) como en el frontend (`autorizacion.ts`).
+  - Bitácora de auditoría inmutable (`AuditLogService` y `booking.audit_log`) con `userId`, `role`, `placeId`, `ip` y `correlationId`, más detector distribuido de ataques (`AttackDetector` en Redis) que bloquea por 10 minutos IPs con >50 errores `401/429` en 1 minuto.
+- **Disponibilidad y Escalabilidad (ESC-04):**
+  - Balanceadores propios (`planazo-balancer`: `lb-booking`, `lb-promo`, `lb-gateway`, `lb-realtime`) con algoritmo *round-robin* y healthcheck activo sobre múltiples réplicas (`booking-a`/`booking-b`, `promo-a`/`promo-b`).
+  - Circuit Breaker (`opossum`) en el gateway con reintentos automáticos en lecturas `GET` idempotentes y respuesta `503 SERVICIO_NO_DISPONIBLE`.
+  - Panel en vivo `/estado` con visualización de réplicas y botón de prueba de caos (`POST /api/caos/apagar`).
+- **Mantenibilidad e Inspección Continua (ESC-05):**
+  - Integración con **SonarCloud** en los flujos de GitHub Actions (`ci.yml`) de todos los repositorios, con cobertura superior al **80 %** (`planazo-frontend`: **93.15 %**, `planazo-api-gateway`: **94.31 %**).
+- **Rendimiento en Tiempo Real (ESC-06):**
+  - Estado compartido en PostgreSQL y Redis, pruebas de carga con k6 HTTP y WebSocket (`planazo-infra/k6/`) y marcador atómico del minijuego con `ZINCRBY` en Redis.
+- **Observabilidad (ESC-07):**
+  - Logs estructurados en JSON con `x-request-id` y `x-correlation-id` de punta a punta, métricas Prometheus (`/metrics` y `/actuator/prometheus`) y tableros técnicos y de negocio en Grafana (`planazo-infra/observabilidad/`).
 
 ## Producción
 
 | Pieza | Dónde | URL | Estado |
 |---|---|---|---|
-| frontend | Vercel (proyecto `planazo-frontend`, Root Directory `frontend`) | https://planazo-frontend.vercel.app | `live` contra los cinco servicios. Variables: `NEXT_PUBLIC_API_MODE`, `NEXT_PUBLIC_API_URL`, `NEXT_PUBLIC_REALTIME_URL`, `NEXT_PUBLIC_GAME_URL`. Cada push a `main` despliega. |
-| api-gateway | Railway, dominio público | https://planazo-api-gateway-production.up.railway.app | Auth demo, proxy a booking/promo con `x-gateway-key`, proxy a game con `Bearer`, CORS, rate limit 600/min, agente con plantilla (sin `ANTHROPIC_API_KEY`). |
-| booking | Railway, red privada | `http://planazo-booking.railway.internal:3001` | CC-3 con lock optimista. **Estado en memoria**: un redespliegue borra las reservas. |
-| promo | Railway, red privada | `http://planazo-promo.railway.internal:3002` | CC-1 con `DECR` atómico en Redis (Lua). Promociones y cupones **en memoria**; stock en Redis. |
-| realtime | Railway, dominio público | `wss://planazo-realtime-production.up.railway.app/ws` | AUTH, SUBSCRIBE, RESUME, REPLAY. Event log en Postgres (esquema `public`, Prisma). Persiste también los ticks del juego. |
-| game | Railway, dominio público | `https://planazo-game-production.up.railway.app` (REST `/api/v1`, STOMP `/ws`, Swagger `/swagger-ui.html`) | Java 21 + Spring Boot. Salas fijas, tick a 20 Hz, leaderboard en Redis, resultados en Postgres (esquema `minijuego`). |
-| Postgres | Railway | privado | Uno solo, compartido por realtime y game. |
-| Redis | Railway | privado | Uno solo: bus `planazo.events`, stock de promo, leaderboard de game (db 1). |
+| **frontend** | Vercel (`planazo-frontend`, Root Directory `frontend`) | https://planazo-frontend.vercel.app | `live` contra el clúster en Railway y Firebase Auth (`planazo-auth`). Cada merge a `main` despliega automáticamente. |
+| **api-gateway** | Railway, dominio público (con réplicas) | https://planazo-api-gateway-production.up.railway.app | Verifica credenciales de Google y Firebase Auth, firma el JWT HS256, valida RBAC (`cliente` \| `negocio` + `placeId`), Circuit Breaker (`opossum`), auditoría, detector de ataques y métricas Prometheus. |
+| **lb-booking + booking** | Railway, red privada (`booking-a`, `booking-b`) | `http://lb-booking.railway.internal:8080` | 2 réplicas detrás de balanceador round-robin. Persistencia en PostgreSQL (esquema `booking`), CC-3 con lock optimista, cuentas, NIT y secretos 2FA. |
+| **lb-promo + promo** | Railway, red privada (`promo-a`, `promo-b`) | `http://lb-promo.railway.internal:8080` | 2 réplicas detrás de balanceador round-robin. Stock y reclamo atómico en Redis (Lua, CC-1) + PostgreSQL (esquema `promo`), bonos exclusivos para ganadores del minijuego. |
+| **realtime** | Railway, dominio público | `wss://planazo-realtime-production.up.railway.app/ws` | AUTH, SUBSCRIBE, RESUME, REPLAY sin duplicados (RT-1 y RT-2). Secuencia global en PostgreSQL y fan-out por Redis. |
+| **game** | Railway, dominio público | `https://planazo-game-production.up.railway.app` | Java 21 + Spring Boot. Salas de duelo a 20 Hz (RT-3), validación JWT en REST y STOMP, marcador en Redis (`ZINCRBY`, CC-2) e histórico en PostgreSQL (esquema `minijuego`). |
+| **PostgreSQL** | Railway, red privada | privado | Esquemas separados por servicio (`booking`, `promo`, `public` para realtime, `minijuego` para game). |
+| **Redis** | Railway, red privada | privado | Bus `planazo.events`, stock de promos, marcador del juego (db 1) y contadores/bloqueos de seguridad por IP. |
 
-Proyecto de Railway: `zesty-freedom` (workspace de Camilo, plan Hobby). Secretos `JWT_SECRET` (= `JWT_SECRETO` en game) y `GATEWAY_KEY` iguales en cada servicio, generados el 8 de octubre; quien los necesite los copia desde las variables de Railway, nunca por chat.
+## Repositorios de la organización (`planazo-team`)
 
-## Lo que se verificó en producción (8 de octubre)
-
-- Login demo, mapa con los 12 lugares, ficha con promociones reales, reserva confirmada y `409 VERSION_CONFLICT` al repetirla con la versión vieja.
-- Promoción lanzada por `b1`, 10 reclamos simultáneos contra stock 3: exactamente 3 cupones y 7 `PROMO_AGOTADA`.
-- Un cliente WebSocket suscrito a `zone:zona-t` recibe el `PROMO.PUSH` con su `seq`.
-- Partida de cuatro jugadores en `Sala Cartagena` desde la web pública: cuenta regresiva, movimiento en vivo y marcador global.
-
-## Repos y ramas
-
-| Repo | `main` | Protección |
+| Repo | Rol | Cobertura / CI |
 |---|---|---|
-| planazo-frontend | live + rediseño (#12), juego de Diego (#17), docs (#18) | PR + check `ci`; sin aprobación obligatoria desde el 8 oct |
-| planazo-api-gateway | NestJS 11, JWT compartido con game (#12), docs (#14) | sin protección (privado) |
-| planazo-booking | implementado (#13), docs (#14) | sin protección (privado) |
-| planazo-promo | reescrito al contrato (#14), docs (#17) | sin protección (privado) |
-| planazo-game | Java, bus Redis, docs (#12) | sin protección (privado) |
-| planazo-realtime | protocolo completo, docs (#15) | sin protección (privado); CI en rojo por lint |
-| planazo-infra | script de Railway (#4), docs (#5) | sin protección (privado) |
-| planazo-service-template | NestJS 11 (#8), docs (#11) | sin protección (privado) |
-| .github | docs PR #1 **abierto**: exige una aprobación | PR + 1 aprobación |
+| `planazo-frontend` | App Next.js 16 (cliente, panel del negocio y `/estado`) | CI + Vitest (**93.15 %**) + SonarCloud |
+| `planazo-api-gateway` | Gateway HTTP, Auth Google/Firebase + 2FA, RBAC, Circuit Breaker, Auditoría y Agente | CI + Jest (**94.31 %**) + SonarCloud |
+| `planazo-booking` | Catálogo, reservas con lock optimista (CC-3), cuentas de negocio y 2FA | CI + Jest (≥ 80 %) + SonarCloud |
+| `planazo-promo` | Promociones relámpago con Lua en Redis (CC-1) y bonos de ganadores | CI + Jest (≥ 80 %) + SonarCloud |
+| `planazo-realtime` | Gateway WebSocket con secuencia global y `RESUME`/`REPLAY` (RT-1, RT-2) | CI + Jest (≥ 80 %) + SonarCloud |
+| `planazo-game` | Minijuego Snake en Java 21 + Spring Boot + STOMP (RT-3, CC-2) | CI + Maven/JaCoCo (≥ 80 %) + SonarCloud |
+| `planazo-balancer` | Balanceador HTTP/WS ligero con round-robin y healthcheck activo | Desplegado en Railway (`lb-*`) |
+| `planazo-infra` | Docker Compose, contratos, colección Bruno, scripts k6 y stack Prometheus + Grafana | Scripts de verificación e infraestructura |
 
-## Pendientes, por prioridad
+## Decisiones arquitectónicas (ADRs)
 
-1. **`ANTHROPIC_API_KEY`** en el gateway (Railway) para que el agente use Claude; sin ella responde con una plantilla por palabras clave.
-2. **k6 contra Railway** para CC-2 con el protocolo STOMP (la prueba de Node ya cubre el flujo; falta la versión de carga).
-3. PRs de Dependabot abiertos en varios repos y `planazo-game#11` (probablemente obsoleto: game ahora es Java).
-4. Mergear el PR #1 de `.github` (necesita una aprobación).
-
-## Cómo retomar
-
-- Correr todo en local: `planazo-infra/README.md`. Desplegar o reconfigurar gateway, booking y promo: `planazo-infra/scripts/railway-deploy-core.sh`. Realtime y game se despliegan desde GitHub con `railway service source connect`.
-- Documentación: empieza por [`contexto.md`](contexto.md); el contrato ejecutable es `frontend/src/lib/types.ts`, `api/types.ts` y `game/types.ts`; la tabla está en `planazo-infra/contracts/`.
+Ver índice completo en [`docs/adr/README.md`](adr/README.md):
+- [`ADR-01`](adr/ADR-01-balanceador-carga-explicito.md): Balanceadores de carga explícitos con round-robin y healthcheck activo.
+- [`ADR-02`](adr/ADR-02-estado-compartido-servicios-stateless.md): Estado compartido en PostgreSQL y Redis con microservicios stateless.
+- [`ADR-03`](adr/ADR-03-escalabilidad-minijuego.md): Escalabilidad del Minijuego mediante autoridad en memoria por sala y marcador atómico en Redis.
+- [`ADR-04`](adr/ADR-04-tacticas-tolerancia-fallos.md): Tácticas de tolerancia a fallos (Circuit Breaker, reintentos idempotentes y reconexión con RESUME).
+- [`ADR-05`](adr/ADR-05-jwt-stateless.md): Autenticación y autorización stateless mediante JWT compartido.
+- [`ADR-06`](adr/ADR-06-auditoria-y-deteccion-ataques.md): Bitácora de auditoría inmutable y detección distribuida de ataques con Redis.
+- [`ADR-07`](adr/ADR-07-observabilidad-prometheus-grafana.md): Observabilidad unificada con Prometheus, Grafana, logs JSON y trazabilidad por correlation-id.
