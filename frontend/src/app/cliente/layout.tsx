@@ -9,6 +9,7 @@ import { ConnectionBadge } from '@/components/ConnectionBadge';
 import { Avatar } from '@/components/Avatar';
 import { Icon } from '@/components/Icon';
 import { PromoToast } from '@/components/PromoToast';
+import { limpiarTrazasSeguridad } from '@/lib/autorizacion';
 import { cerrarSesionFirebase } from '@/lib/firebase';
 import { salirDeSalaGuardada } from '@/lib/game/client';
 import { useRtEvent, useTopics } from '@/lib/hooks';
@@ -30,6 +31,9 @@ function ClientShell({ user, children }: { user: SessionUser; children: React.Re
     <div className="shell">
       <header className="topbar">
         <Brand />
+        <span className="badge ok hide-sm" title={`Sesión activa con rol ${user.role} (${user.id})`}>
+          Rol: Cliente
+        </span>
         <div className="spacer" />
         <ConnectionBadge />
         <CambiarModo user={user} />
@@ -40,6 +44,7 @@ function ClientShell({ user, children }: { user: SessionUser; children: React.Re
             // Primero se sale de la sala del Snake (si estaba en una), después de la sesión.
             await salirDeSalaGuardada();
             await cerrarSesionFirebase();
+            limpiarTrazasSeguridad();
             setSession(null);
             // Recarga completa: la conexión en vivo y todo lo que estaba en memoria
             // eran del usuario anterior y no deben pasar al siguiente.

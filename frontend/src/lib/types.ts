@@ -137,6 +137,9 @@ export type ErrorCode =
   | 'CREDENCIAL_INVALIDA'
   | 'CORREO_NO_VERIFICADO'
   | 'GOOGLE_NO_CONFIGURADO'
+  | 'SIN_TOKEN'
+  | 'ROL_NO_AUTORIZADO'
+  | 'ESTABLECIMIENTO_AJENO'
   | 'SIN_CONEXION';
 
 /* ------------------------------------------------------------------ */

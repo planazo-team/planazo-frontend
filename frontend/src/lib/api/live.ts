@@ -1,3 +1,4 @@
+import { nuevoCorrelationId, verificarPermisoRol, type AccionSeguridad } from '../autorizacion';
 import { config } from '../config';
 import { esCredencialFirebase, esSesionFirebase } from '../firebase';
 import { getSession, setSession, type SessionUser } from '../session';
@@ -10,14 +11,35 @@ import type { Api } from './types';
  * Los 409 no son excepciones: llegan como `{ ok: false, code }` para que la UI los explique.
  */
 
-async function call<T>(method: string, path: string, body?: unknown): Promise<ApiResult<T>> {
-  const token = getSession()?.token;
+async function call<T>(
+  method: string,
+  path: string,
+  body?: unknown,
+  traza?: { accion: AccionSeguridad; placeIdObjetivo?: string },
+): Promise<ApiResult<T>> {
+  const session = getSession();
+  const token = session?.token;
+  let correlationId: string | undefined;
+
+  if (session && traza) {
+    const permiso = verificarPermisoRol(traza.accion, {
+      user: session,
+      placeIdObjetivo: traza.placeIdObjetivo,
+    });
+    if (!permiso.ok) return permiso;
+    correlationId = permiso.data.correlationId;
+  } else if (session) {
+    correlationId = nuevoCorrelationId();
+  }
+
   try {
     const res = await fetch(`${config.apiUrl}${path}`, {
       method,
       headers: {
         'Content-Type': 'application/json',
         ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        ...(correlationId ? { 'X-Correlation-Id': correlationId } : {}),
+        ...(session?.role ? { 'X-Client-Role': session.role } : {}),
       },
       body: body === undefined ? undefined : JSON.stringify(body),
     });
@@ -98,7 +120,7 @@ export const liveApi: Api = {
   },
   createBusiness: async (input) => {
     if (esSesionFirebase()) return mockApi.createBusiness(input);
-    const r = await call<AuthResponse & { place: Place }>('POST', '/api/auth/negocio', input);
+    const r = await call<AuthResponse & { place: Place }>('POST', '/api/auth/negocio', input, { accion: 'CREAR_LUGAR' });
     return r.ok ? { ok: true, data: { place: r.data.place, user: toSession(r.data) } } : r;
   },
 
@@ -112,25 +134,40 @@ export const liveApi: Api = {
     const promos = await get<Promo[]>(`/api/promos${qs({ zone: place.zone })}`, []);
     return { ...place, promos: promos.filter((p) => p.placeId === place.id) };
   },
-  reserve: (input) => (esSesionFirebase() ? mockApi.reserve(input) : call('POST', '/api/reservations', input)),
+  reserve: (input) =>
+    esSesionFirebase() ? mockApi.reserve(input) : call('POST', '/api/reservations', input, { accion: 'RESERVAR_CUPO' }),
   myReservations: () => (esSesionFirebase() ? mockApi.myReservations() : get('/api/reservations/mine', [])),
-  cancelReservation: (id) => (esSesionFirebase() ? mockApi.cancelReservation(id) : call('DELETE', `/api/reservations/${encodeURIComponent(id)}`)),
+  cancelReservation: (id) =>
+    esSesionFirebase()
+      ? mockApi.cancelReservation(id)
+      : call('DELETE', `/api/reservations/${encodeURIComponent(id)}`, undefined, { accion: 'CANCELAR_RESERVA' }),
 
   activePromos: (zone) => (esSesionFirebase() ? mockApi.activePromos(zone) : get(`/api/promos${qs({ zone })}`, [])),
-  claimPromo: (id) => (esSesionFirebase() ? mockApi.claimPromo(id) : call('POST', `/api/promos/${encodeURIComponent(id)}/claim`)),
+  claimPromo: (id) =>
+    esSesionFirebase()
+      ? mockApi.claimPromo(id)
+      : call('POST', `/api/promos/${encodeURIComponent(id)}/claim`, undefined, { accion: 'RECLAMAR_PROMO' }),
   myCoupons: () => (esSesionFirebase() ? mockApi.myCoupons() : get('/api/promos/mine', [])),
 
-  plan: (text) => (esSesionFirebase() ? mockApi.plan(text) : call('POST', '/api/plan', { text })),
+  plan: (text) => (esSesionFirebase() ? mockApi.plan(text) : call('POST', '/api/plan', { text }, { accion: 'PEDIR_PLAN_AGENTE' })),
 
   placeReservations: (placeId) =>
     esSesionFirebase() ? mockApi.placeReservations(placeId) : get(`/api/places/${encodeURIComponent(placeId)}/reservations`, []),
   updateSlotCapacity: (input) =>
     esSesionFirebase()
       ? mockApi.updateSlotCapacity(input)
-      : call('PATCH', `/api/places/${encodeURIComponent(input.placeId)}/slots/${encodeURIComponent(input.slotId)}`, {
-          capacity: input.capacity,
-          version: input.version,
-        }),
-  createEvent: (input) => (esSesionFirebase() ? mockApi.createEvent(input) : call('POST', '/api/events', input)),
-  launchPromo: (input) => (esSesionFirebase() ? mockApi.launchPromo(input) : call('POST', '/api/promos', input)),
+      : call(
+          'PATCH',
+          `/api/places/${encodeURIComponent(input.placeId)}/slots/${encodeURIComponent(input.slotId)}`,
+          { capacity: input.capacity, version: input.version },
+          { accion: 'EDITAR_CAPACIDAD_CUPO', placeIdObjetivo: input.placeId },
+        ),
+  createEvent: (input) =>
+    esSesionFirebase()
+      ? mockApi.createEvent(input)
+      : call('POST', '/api/events', input, { accion: 'CREAR_EVENTO', placeIdObjetivo: input.placeId }),
+  launchPromo: (input) =>
+    esSesionFirebase()
+      ? mockApi.launchPromo(input)
+      : call('POST', '/api/promos', input, { accion: 'LANZAR_PROMO', placeIdObjetivo: input.placeId }),
 };
