@@ -1,4 +1,9 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import {
+  leerTrazasSeguridad,
+  limpiarTrazasSeguridad,
+  verificarPermisoRol,
+} from './autorizacion';
 import { coverOf, coverUrl, logoOf } from './brand';
 import {
   cerrarSesionFirebase,
@@ -153,6 +158,46 @@ describe('sesión', () => {
     });
     setSession({ id: 'c-2', name: 'Beto', role: 'cliente' });
     expect(getSession()?.name).toBe('Beto');
+  });
+
+  it('diferencia permisos entre cliente y negocio con trazabilidad de seguridad', () => {
+    limpiarTrazasSeguridad();
+    expect(verificarPermisoRol('RESERVAR_CUPO').ok).toBe(false);
+
+    const cliente = { id: 'u1', name: 'Juan Diego', role: 'cliente' as const };
+    const negocio = { id: 'b1', name: 'Bar El Zaguán', role: 'negocio' as const, placeId: 'p1' };
+
+    expect(verificarPermisoRol('RESERVAR_CUPO', { user: cliente }).ok).toBe(true);
+    expect(verificarPermisoRol('RECLAMAR_PROMO', { user: cliente }).ok).toBe(true);
+    expect(verificarPermisoRol('JUGAR_MINIJUEGO', { user: cliente }).ok).toBe(true);
+    expect(verificarPermisoRol('LANZAR_PROMO', { user: cliente })).toMatchObject({
+      ok: false,
+      status: 403,
+      code: 'ROL_NO_AUTORIZADO',
+    });
+
+    expect(verificarPermisoRol('LANZAR_PROMO', { user: negocio, placeIdObjetivo: 'p1' }).ok).toBe(true);
+    expect(verificarPermisoRol('EDITAR_CAPACIDAD_CUPO', { user: negocio, placeIdObjetivo: 'p1' }).ok).toBe(true);
+    expect(verificarPermisoRol('LANZAR_PROMO', { user: negocio, placeIdObjetivo: 'p2' })).toMatchObject({
+      ok: false,
+      status: 403,
+      code: 'ROL_NO_AUTORIZADO',
+    });
+    expect(verificarPermisoRol('RESERVAR_CUPO', { user: negocio })).toMatchObject({
+      ok: false,
+      status: 403,
+      code: 'ROL_NO_AUTORIZADO',
+    });
+    expect(verificarPermisoRol('VER_LUGARES', { user: { id: 'x', name: 'X', role: 'invalido' as any } })).toMatchObject({
+      ok: false,
+      status: 403,
+    });
+
+    const trazas = leerTrazasSeguridad();
+    expect(trazas.length).toBeGreaterThanOrEqual(8);
+    expect(trazas.some((t) => t.resultado === 'DENEGADO' && t.motivo === 'ESTABLECIMIENTO_AJENO')).toBe(true);
+    limpiarTrazasSeguridad();
+    expect(leerTrazasSeguridad()).toHaveLength(0);
   });
 });
 

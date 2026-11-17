@@ -7,6 +7,7 @@ import { CambiarModo } from '@/components/CambiarModo';
 import { ConnectionBadge } from '@/components/ConnectionBadge';
 import { Icon } from '@/components/Icon';
 import { PromoToast } from '@/components/PromoToast';
+import { limpiarTrazasSeguridad } from '@/lib/autorizacion';
 import { cerrarSesionFirebase } from '@/lib/firebase';
 import { useTopics } from '@/lib/hooks';
 import { setSession, type SessionUser } from '@/lib/session';
@@ -19,6 +20,12 @@ function BusinessShell({ user, children }: { user: SessionUser; children: React.
     <div className="shell">
       <header className="topbar">
         <Brand sub="Negocios" />
+        <span
+          className="badge gold hide-sm"
+          title={`Sesión activa con rol ${user.role} (${user.id})${user.placeId ? ` · placeId=${user.placeId}` : ''}`}
+        >
+          Rol: Negocio{user.placeId ? ` · #${user.placeId}` : ''}
+        </span>
         <div className="spacer" />
         <ConnectionBadge />
         <CambiarModo user={user} />
@@ -27,6 +34,7 @@ function BusinessShell({ user, children }: { user: SessionUser; children: React.
           className="btn ghost sm icon"
           onClick={async () => {
             await cerrarSesionFirebase();
+            limpiarTrazasSeguridad();
             setSession(null);
             // Recarga completa: la conexión en vivo y todo lo que estaba en memoria
             // eran del usuario anterior y no deben pasar al siguiente.
