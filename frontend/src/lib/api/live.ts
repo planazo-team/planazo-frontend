@@ -1,6 +1,8 @@
 import { config } from '../config';
+import { esCredencialFirebase } from '../firebase';
 import { getSession, setSession, type SessionUser } from '../session';
 import type { ApiResult, ErrorCode, Place, PlaceDetail, Promo } from '../types';
+import { mockApi } from './mock';
 import type { Api } from './types';
 
 /**
@@ -67,10 +69,12 @@ const toSession = (r: AuthResponse): SessionUser => ({
 
 export const liveApi: Api = {
   loginGoogle: async (credential, modo, codigo) => {
+    if (esCredencialFirebase(credential)) return mockApi.loginGoogle(credential, modo, codigo);
     const r = await call<AuthResponse>('POST', '/api/auth/google', { credential, ...(modo ? { modo } : {}), ...(codigo ? { codigo } : {}) });
     return r.ok ? { ok: true, data: toSession(r.data) } : r;
   },
   registrarNegocio: async (credential, datos) => {
+    if (esCredencialFirebase(credential)) return mockApi.registrarNegocio(credential, datos);
     const r = await call<AuthResponse>('POST', '/api/auth/negocio/registro', { credential, ...datos });
     return r.ok ? { ok: true, data: toSession(r.data) } : r;
   },

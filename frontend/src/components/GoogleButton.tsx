@@ -1,51 +1,70 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
-import { config } from '@/lib/config';
-import { cargarGoogle } from '@/lib/google';
+import { useState } from 'react';
+import { entrarConGoogleFirebase, mensajeErrorFirebase } from '@/lib/firebase';
 
-/** El botón oficial de Google. `onCredential` recibe el ID token que verifica el gateway. */
-export function GoogleButton({ onCredential }: { onCredential: (credential: string) => void }) {
-  const caja = useRef<HTMLDivElement>(null);
-  const cb = useRef(onCredential);
-  cb.current = onCredential;
-  const [error, setError] = useState(false);
+/**
+ * Botón «Continuar con Google» conectado a Firebase Authentication (`planazo-auth`).
+ * Al autenticar entrega la credencial a `onCredential` para continuar con el flujo
+ * de cliente o negocio de Planazo.
+ */
+export function GoogleButton({
+  onCredential,
+  onError,
+  disabled,
+}: {
+  onCredential: (credential: string) => void;
+  onError?: (mensaje: string) => void;
+  disabled?: boolean;
+}) {
+  const [cargando, setCargando] = useState(false);
 
-  useEffect(() => {
-    let vivo = true;
-    cargarGoogle()
-      .then((g) => {
-        if (!vivo || !caja.current) return;
-        g.accounts.id.initialize({
-          client_id: config.googleClientId,
-          callback: (r) => cb.current(r.credential),
-          ux_mode: 'popup',
-          auto_select: false,
-          context: 'signin',
-        });
-        g.accounts.id.renderButton(caja.current, {
-          type: 'standard',
-          theme: 'filled_black',
-          size: 'large',
-          shape: 'pill',
-          text: 'continue_with',
-          logo_alignment: 'left',
-          locale: 'es',
-          width: Math.min(caja.current.offsetWidth || 320, 400),
-        });
-      })
-      .catch(() => vivo && setError(true));
-    return () => {
-      vivo = false;
-    };
-  }, []);
-
-  if (error) {
-    return (
-      <p className="alert error" role="alert" style={{ margin: 0 }}>
-        No pudimos cargar el inicio de sesión de Google. Revisa tu conexión (o el bloqueador de anuncios) y recarga la página.
-      </p>
-    );
+  async function abrirGoogle() {
+    if (cargando || disabled) return;
+    setCargando(true);
+    try {
+      const cred = await entrarConGoogleFirebase();
+      onCredential(cred);
+    } catch (err) {
+      onError?.(mensajeErrorFirebase(err));
+    } finally {
+      setCargando(false);
+    }
   }
-  return <div ref={caja} className="google-btn" style={{ minHeight: 44, display: 'flex', justifyContent: 'center' }} />;
+
+  return (
+    <button
+      type="button"
+      className="btn ghost block"
+      onClick={() => void abrirGoogle()}
+      disabled={disabled || cargando}
+      style={{
+        minHeight: 48,
+        background: '#111b19',
+        borderColor: 'var(--line-strong)',
+        gap: 10,
+        fontSize: 15,
+      }}
+    >
+      <svg width={18} height={18} viewBox="0 0 48 48" aria-hidden>
+        <path
+          fill="#EA4335"
+          d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"
+        />
+        <path
+          fill="#4285F4"
+          d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"
+        />
+        <path
+          fill="#FBBC05"
+          d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"
+        />
+        <path
+          fill="#34A853"
+          d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"
+        />
+      </svg>
+      {cargando ? 'Conectando con Google…' : 'Continuar con Google'}
+    </button>
+  );
 }

@@ -11,6 +11,11 @@ import { CodigoDosPasos } from '@/components/CodigoDosPasos';
 import { api } from '@/lib/api';
 import { coverUrl } from '@/lib/brand';
 import { config } from '@/lib/config';
+import {
+  entrarConCorreoFirebase,
+  mensajeErrorFirebase,
+  registrarConCorreoFirebase,
+} from '@/lib/firebase';
 import { credencialDemo, leerCredencial } from '@/lib/google';
 import type { DatosNegocio } from '@/lib/negocio';
 import { setSession, useSession, type Role, type SessionUser } from '@/lib/session';
@@ -22,13 +27,13 @@ const MODOS: Record<Role, { boton: string; icono: 'sparkles' | 'store'; texto: s
     boton: 'Voy a salir',
     icono: 'sparkles',
     texto: 'Explora el mapa, reserva cupos, reclama promos y juega por bonos.',
-    detalle: 'Entra o crea tu cuenta con Google. No creamos contraseñas: Google confirma quién eres.',
+    detalle: 'Entra o crea tu cuenta con Google o con tu correo electrónico.',
   },
   negocio: {
     boton: 'Tengo un negocio',
     icono: 'store',
     texto: 'Crea tu lugar en el mapa, lanza promociones y mira las reservas llegar en vivo.',
-    detalle: 'Si ya registraste tu negocio entras a tu panel. Si no, después de Google te pedimos el NIT para verificarlo.',
+    detalle: 'Si ya registraste tu negocio entras a tu panel. Si no, después de autenticarte te pedimos el NIT para verificarlo.',
   },
 };
 
@@ -43,29 +48,33 @@ const COLLAGE: Array<{ img: string; tag: string; r: string }> = [
   { img: 'p12', tag: 'Parque', r: '1.5deg' },
 ];
 
-/** Sin client ID de Google solo se puede entrar en modo demo (servicios simulados). */
-const conGoogle = !!config.googleClientId;
-
 export default function LoginPage() {
   const router = useRouter();
   const session = useSession();
   // Una cuenta, dos modos. Cliente lo es cualquiera; negocio pide haber registrado el negocio.
   const [modo, setModo] = useState<Role>('cliente');
-  // Registro del negocio: la credencial de Google queda guardada mientras se llenan los datos.
+  // Registro del negocio: la credencial queda guardada mientras se llenan los datos.
   const [registro, setRegistro] = useState<{ credential: string; name: string } | null>(null);
-  /** Credencial de Google ya verificada que espera el código de dos pasos para entrar en modo negocio. */
+  /** Credencial ya verificada que espera el código de dos pasos para entrar en modo negocio. */
   const [segundoPaso, setSegundoPaso] = useState<string | null>(null);
   const [datos, setDatos] = useState<DatosNegocio>(DATOS_VACIOS);
   const [nota, setNota] = useState<string | null>(null);
+
+  // Formulario de correo y contraseña con Firebase Auth
+  const [accionCorreo, setAccionCorreo] = useState<'entrar' | 'crear'>('entrar');
+  const [nombreCuenta, setNombreCuenta] = useState('');
+  const [correo, setCorreo] = useState('');
+  const [clave, setClave] = useState('');
+
   const [nombreDemo, setNombreDemo] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // «Registrar mi negocio» desde la app del cliente llega aquí: hay que confirmar con Google.
+  // «Registrar mi negocio» desde la app del cliente llega aquí: hay que confirmar identidad.
   useEffect(() => {
     if (new URLSearchParams(window.location.search).get('registro') === 'negocio') {
       setModo('negocio');
-      setNota('Para registrar tu negocio, confirma con Google que eres tú.');
+      setNota('Para registrar tu negocio, confirma tu cuenta.');
     }
   }, []);
 
@@ -101,6 +110,24 @@ export default function LoginPage() {
     setError(r.status === 0 ? sinRed : r.error);
   }
 
+  async function enviarCorreo(e: React.FormEvent) {
+    e.preventDefault();
+    if (!correo.trim() || clave.length < 6) return;
+    if (accionCorreo === 'crear' && nombreCuenta.trim().length < 2) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const cred =
+        accionCorreo === 'crear'
+          ? await registrarConCorreoFirebase(nombreCuenta, correo, clave)
+          : await entrarConCorreoFirebase(correo, clave);
+      await entrar(cred);
+    } catch (err) {
+      setBusy(false);
+      setError(mensajeErrorFirebase(err));
+    }
+  }
+
   async function entrarConCodigo(codigo: string) {
     if (!segundoPaso) return;
     setBusy(true);
@@ -119,9 +146,9 @@ export default function LoginPage() {
     setBusy(false);
     if (r.ok) return terminar(r.data);
     if (r.code === 'CREDENCIAL_VIEJA') {
-      // Pasaron más de 10 minutos desde Google: se confirma otra vez y los datos se conservan.
+      // Pasaron más de 10 minutos: se confirma otra vez y los datos se conservan.
       setRegistro(null);
-      setNota('Por seguridad, vuelve a confirmar con Google. Tus datos siguen ahí.');
+      setNota('Por seguridad, vuelve a confirmar tu cuenta. Tus datos siguen ahí.');
       return;
     }
     setError(r.status === 0 ? sinRed : r.error);
@@ -209,38 +236,101 @@ export default function LoginPage() {
               </p>
             )}
 
-            {conGoogle ? (
-              <GoogleButton onCredential={(c) => entrar(c)} />
-            ) : config.demo ? (
-              <form
-                className="stack"
-                style={{ gap: 10 }}
-                onSubmit={(e) => {
-                  e.preventDefault();
-                  if (nombreDemo.trim().length >= 2) void entrar(credencialDemo(nombreDemo.trim()));
+            <GoogleButton
+              disabled={busy}
+              onCredential={(c) => void entrar(c)}
+              onError={(msg) => setError(msg)}
+            />
+
+            <div className="row" style={{ gap: 10, margin: '2px 0' }} aria-hidden>
+              <span style={{ flex: 1, height: 1, background: 'var(--line-strong)' }} />
+              <span className="eyebrow" style={{ fontSize: 10.5 }}>o con tu correo</span>
+              <span style={{ flex: 1, height: 1, background: 'var(--line-strong)' }} />
+            </div>
+
+            <div className="chips" role="tablist" aria-label="Acción con correo" style={{ padding: 0 }}>
+              <button
+                type="button"
+                className="chip"
+                aria-pressed={accionCorreo === 'entrar'}
+                onClick={() => {
+                  setAccionCorreo('entrar');
+                  setError(null);
                 }}
+                disabled={busy}
               >
+                Ya tengo cuenta
+              </button>
+              <button
+                type="button"
+                className="chip"
+                aria-pressed={accionCorreo === 'crear'}
+                onClick={() => {
+                  setAccionCorreo('crear');
+                  setError(null);
+                }}
+                disabled={busy}
+              >
+                Crear cuenta
+              </button>
+            </div>
+
+            <form className="stack" style={{ gap: 10 }} onSubmit={(e) => void enviarCorreo(e)}>
+              {accionCorreo === 'crear' && (
                 <label className="field">
-                  <span className="visually-hidden">Nombre para el modo demo</span>
+                  Tu nombre
                   <input
-                    className="name-input"
-                    value={nombreDemo}
-                    onChange={(e) => setNombreDemo(e.target.value)}
-                    placeholder="Nombre (modo demo, sin Google)"
-                    maxLength={30}
+                    value={nombreCuenta}
+                    onChange={(e) => setNombreCuenta(e.target.value)}
+                    placeholder="Ej. Camila Gómez"
+                    maxLength={40}
+                    autoComplete="name"
+                    required
                   />
                 </label>
-                <button type="submit" className="btn block" disabled={busy || nombreDemo.trim().length < 2}>
-                  Entrar en modo demo <Icon name="arrowRight" />
-                </button>
-              </form>
-            ) : (
-              <p className="alert error" role="alert" style={{ margin: 0 }}>
-                Falta configurar el inicio de sesión con Google (NEXT_PUBLIC_GOOGLE_CLIENT_ID).
-              </p>
-            )}
+              )}
+              <label className="field">
+                Correo electrónico
+                <input
+                  type="email"
+                  value={correo}
+                  onChange={(e) => setCorreo(e.target.value)}
+                  placeholder="tu@correo.com"
+                  autoComplete="email"
+                  required
+                />
+              </label>
+              <label className="field">
+                Contraseña
+                <input
+                  type="password"
+                  value={clave}
+                  onChange={(e) => setClave(e.target.value)}
+                  placeholder="Mínimo 6 caracteres"
+                  minLength={6}
+                  autoComplete={accionCorreo === 'crear' ? 'new-password' : 'current-password'}
+                  required
+                />
+              </label>
+              <button
+                type="submit"
+                className="btn block"
+                disabled={
+                  busy ||
+                  !correo.trim() ||
+                  clave.length < 6 ||
+                  (accionCorreo === 'crear' && nombreCuenta.trim().length < 2)
+                }
+              >
+                {busy
+                  ? 'Autenticando con Firebase…'
+                  : accionCorreo === 'crear'
+                    ? 'Crear cuenta y entrar'
+                    : 'Entrar con correo'}{' '}
+                <Icon name="arrowRight" />
+              </button>
+            </form>
 
-            {busy && <span className="caption">Verificando con Google…</span>}
             {error && (
               <p className="alert error fade-in" role="alert" style={{ margin: 0 }}>
                 {error}
@@ -251,6 +341,35 @@ export default function LoginPage() {
               <button type="button" className="btn ghost block" onClick={() => router.push(home(session))}>
                 Seguir como {session.name}
               </button>
+            )}
+
+            {config.demo && (
+              <details style={{ marginTop: 4 }}>
+                <summary className="muted small" style={{ cursor: 'pointer' }}>
+                  Entrada rápida de demostración (sin cuenta)
+                </summary>
+                <form
+                  className="stack"
+                  style={{ gap: 10, marginTop: 10 }}
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    if (nombreDemo.trim().length >= 2) void entrar(credencialDemo(nombreDemo.trim()));
+                  }}
+                >
+                  <label className="field">
+                    <span className="visually-hidden">Nombre para el modo demo</span>
+                    <input
+                      value={nombreDemo}
+                      onChange={(e) => setNombreDemo(e.target.value)}
+                      placeholder="Nombre (modo demo rápido)"
+                      maxLength={30}
+                    />
+                  </label>
+                  <button type="submit" className="btn ghost sm block" disabled={busy || nombreDemo.trim().length < 2}>
+                    Entrar en modo demo <Icon name="arrowRight" />
+                  </button>
+                </form>
+              </details>
             )}
           </div>
         )}
