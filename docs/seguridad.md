@@ -124,11 +124,11 @@ En el marco de la arquitectura de software de Bass, Clements & Kazman, las táct
 ### 7.1 · Detectar ataques (Detect Attacks)
 * **Detección de patrones y ráfagas anómalas (ESC-03):** El API Gateway implementa un contador de errores (HTTP 401 y 429) por dirección IP utilizando una ventana deslizante de 1 minuto en Redis (`ip:err4xx:<ip>`). Si una IP acumula más de 50 fallos en ese lapso (indicativo de escaneo o fuerza bruta), se activa la detección de ataque.
 * **Emisión de alertas de seguridad:** Ante la superación del umbral, el gateway emite de forma síncrona un evento estructurado `[ALERTA_SEGURIDAD]` para ser consumido por el recolector de métricas/logs y reflejado en el tablero técnico en menos de 60 segundos.
-* **Bitácora de auditoría forense (`audit_log`):** Registro append-only de todas las operaciones sensibles del negocio con IP de origen, sujeto de identidad (`userId`), acción ejecutada, fecha y correlation-id (`x-correlation-id`).
+* **Bitácora de auditoría forense:** Registro (líneas `[AUDIT_LOG]` en el log del gateway) de todas las operaciones sensibles del negocio con IP de origen, sujeto de identidad (`userId`), acción ejecutada, fecha y correlation-id (`x-correlation-id`).
 
 ### 7.2 · Resistir ataques (Resist Attacks)
 * **Autenticar actores (ESC-01):**
-  - **Identidad federada y delegada (Firebase Auth + Google):** Login mediante Firebase Authentication (`planazo-auth`) y Google OpenID Connect (`POST /api/auth/google`). El API Gateway valida la firma criptográfica con las llaves públicas de Google y de Firebase SecureToken, el emisor, audiencia y expiración, y firma el JWT oficial de Planazo (`JWT_SECRET`).
+  - **Identidad delegada en Google:** Login únicamente con Google OpenID Connect (`POST /api/auth/google`). El formulario de correo y contraseña de la pantalla de entrada es solo de interfaz, está oculto por defecto y no tiene backend. El API Gateway valida la firma criptográfica con las llaves públicas de Google, el emisor, la audiencia, la expiración y el correo verificado, y firma el JWT oficial de Planazo (`JWT_SECRET`).
   - **Autenticación multifactor (2FA / TOTP) y reautenticación en modo negocio:** Activar el modo negocio exige verificar el NIT con dígito de verificación DIAN y una credencial reciente (< 10 min); además, el panel del negocio cuenta con verificación en dos pasos mediante código TOTP de 6 dígitos (`POST /api/auth/2fa/*`).
 * **Autorizar actores (ESC-02):**
   - **Control de acceso stateless por rol (`cliente` | `negocio`) y por establecimiento (`placeId`):** Todo acceso a endpoints protegidos exige un JWT válido firmado por el API Gateway (ADR-05). El gateway valida en `role-auth.ts` que `cliente` solo pueda reservar, reclamar cupones y jugar, y que `negocio` solo pueda editar cupos, ver reservas de su lugar, crear eventos y lanzar promociones sobre su propio `placeId` (enviando `x-user-place-id` únicamente cuando `role === 'negocio'`).
@@ -142,6 +142,6 @@ En el marco de la arquitectura de software de Bass, Clements & Kazman, las táct
 
 ### 7.3 · Reaccionar y recuperarse de ataques (React & Recover)
 * **Trazabilidad de incidentes:** Cada petición externa recibe un `x-correlation-id` (UUID v4) que se propaga por HTTP hacia los microservicios aguas abajo y se estampa en los eventos publicados en Redis y en cada línea de la bitácora de auditoría. Permite aislar y rastrear cualquier vector de ataque de punta a punta.
-* **Inmutabilidad y protección de auditoría:** La tabla `audit_log` tiene revocado cualquier privilegio de `UPDATE` o `DELETE` para el usuario de la aplicación, garantizando que un compromiso a nivel de aplicación no pueda borrar la evidencia histórica.
+* **Inmutabilidad y protección de auditoría (pendiente):** El diseño prevé una tabla `audit_log` sin privilegios de `UPDATE` ni `DELETE` para el usuario de la aplicación. Hoy la copia durable es el log del gateway en Railway.
 * **Procedimiento de rotación rápida de secretos:** Procedimiento documentado (§6) para rotar `JWT_SECRET` y revocar instantáneamente todas las sesiones activas en caso de compromiso.
 

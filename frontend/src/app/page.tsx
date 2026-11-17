@@ -11,11 +11,7 @@ import { CodigoDosPasos } from '@/components/CodigoDosPasos';
 import { api } from '@/lib/api';
 import { coverUrl } from '@/lib/brand';
 import { config } from '@/lib/config';
-import {
-  entrarConCorreoFirebase,
-  mensajeErrorFirebase,
-  registrarConCorreoFirebase,
-} from '@/lib/firebase';
+
 import { credencialDemo, leerCredencial } from '@/lib/google';
 import type { DatosNegocio } from '@/lib/negocio';
 import { setSession, useSession, type Role, type SessionUser } from '@/lib/session';
@@ -27,13 +23,13 @@ const MODOS: Record<Role, { boton: string; icono: 'sparkles' | 'store'; texto: s
     boton: 'Voy a salir',
     icono: 'sparkles',
     texto: 'Explora el mapa, reserva cupos, reclama promos y juega por bonos.',
-    detalle: 'Entra o crea tu cuenta con Google o con tu correo electrónico.',
+    detalle: 'Entra o crea tu cuenta con Google. No creamos contraseñas: Google confirma quién eres.',
   },
   negocio: {
     boton: 'Tengo un negocio',
     icono: 'store',
     texto: 'Crea tu lugar en el mapa, lanza promociones y mira las reservas llegar en vivo.',
-    detalle: 'Si ya registraste tu negocio entras a tu panel. Si no, después de autenticarte te pedimos el NIT para verificarlo.',
+    detalle: 'Si ya registraste tu negocio entras a tu panel. Si no, después de Google te pedimos el NIT para verificarlo.',
   },
 };
 
@@ -60,7 +56,9 @@ export default function LoginPage() {
   const [datos, setDatos] = useState<DatosNegocio>(DATOS_VACIOS);
   const [nota, setNota] = useState<string | null>(null);
 
-  // Formulario de correo y contraseña con Firebase Auth
+  // Formulario de correo y contraseña: solo de interfaz y oculto por defecto. El backend
+  // únicamente acepta Google (el gateway verifica el ID token de Google), así que no envía nada.
+  const [mostrarCorreo, setMostrarCorreo] = useState(false);
   const [accionCorreo, setAccionCorreo] = useState<'entrar' | 'crear'>('entrar');
   const [nombreCuenta, setNombreCuenta] = useState('');
   const [correo, setCorreo] = useState('');
@@ -110,22 +108,12 @@ export default function LoginPage() {
     setError(r.status === 0 ? sinRed : r.error);
   }
 
-  async function enviarCorreo(e: React.FormEvent) {
+  function enviarCorreo(e: React.FormEvent) {
     e.preventDefault();
-    if (!correo.trim() || clave.length < 6) return;
-    if (accionCorreo === 'crear' && nombreCuenta.trim().length < 2) return;
-    setBusy(true);
+    // No se manda a ningún servidor: Planazo solo admite el ingreso con Google.
+    setClave('');
     setError(null);
-    try {
-      const cred =
-        accionCorreo === 'crear'
-          ? await registrarConCorreoFirebase(nombreCuenta, correo, clave)
-          : await entrarConCorreoFirebase(correo, clave);
-      await entrar(cred);
-    } catch (err) {
-      setBusy(false);
-      setError(mensajeErrorFirebase(err));
-    }
+    setNota('El ingreso con correo y contraseña todavía no está habilitado. Por ahora entra con Google.');
   }
 
   async function entrarConCodigo(codigo: string) {
@@ -236,100 +224,109 @@ export default function LoginPage() {
               </p>
             )}
 
-            <GoogleButton
-              disabled={busy}
-              onCredential={(c) => void entrar(c)}
-              onError={(msg) => setError(msg)}
-            />
+            <GoogleButton onCredential={(c) => void entrar(c)} />
+            <button
+              type="button"
+              className="btn ghost sm block"
+              aria-expanded={mostrarCorreo}
+              aria-controls="ingreso-correo"
+              onClick={() => {
+                setMostrarCorreo((v) => !v);
+                setNota(null);
+              }}
+            >
+              {mostrarCorreo ? 'Ocultar el ingreso con correo' : 'Usar correo y contraseña'}
+            </button>
+            {mostrarCorreo && (
+              <div id="ingreso-correo" className="stack fade-in" style={{ gap: 14 }}>
+              <div className="row" style={{ gap: 10, margin: '2px 0' }} aria-hidden>
+                <span style={{ flex: 1, height: 1, background: 'var(--line-strong)' }} />
+                <span className="eyebrow" style={{ fontSize: 10.5 }}>o con tu correo</span>
+                <span style={{ flex: 1, height: 1, background: 'var(--line-strong)' }} />
+              </div>
 
-            <div className="row" style={{ gap: 10, margin: '2px 0' }} aria-hidden>
-              <span style={{ flex: 1, height: 1, background: 'var(--line-strong)' }} />
-              <span className="eyebrow" style={{ fontSize: 10.5 }}>o con tu correo</span>
-              <span style={{ flex: 1, height: 1, background: 'var(--line-strong)' }} />
-            </div>
+              <div className="chips" role="tablist" aria-label="Acción con correo" style={{ padding: 0 }}>
+                <button
+                  type="button"
+                  className="chip"
+                  aria-pressed={accionCorreo === 'entrar'}
+                  onClick={() => {
+                    setAccionCorreo('entrar');
+                    setError(null);
+                  }}
+                  disabled={busy}
+                >
+                  Ya tengo cuenta
+                </button>
+                <button
+                  type="button"
+                  className="chip"
+                  aria-pressed={accionCorreo === 'crear'}
+                  onClick={() => {
+                    setAccionCorreo('crear');
+                    setError(null);
+                  }}
+                  disabled={busy}
+                >
+                  Crear cuenta
+                </button>
+              </div>
 
-            <div className="chips" role="tablist" aria-label="Acción con correo" style={{ padding: 0 }}>
-              <button
-                type="button"
-                className="chip"
-                aria-pressed={accionCorreo === 'entrar'}
-                onClick={() => {
-                  setAccionCorreo('entrar');
-                  setError(null);
-                }}
-                disabled={busy}
-              >
-                Ya tengo cuenta
-              </button>
-              <button
-                type="button"
-                className="chip"
-                aria-pressed={accionCorreo === 'crear'}
-                onClick={() => {
-                  setAccionCorreo('crear');
-                  setError(null);
-                }}
-                disabled={busy}
-              >
-                Crear cuenta
-              </button>
-            </div>
-
-            <form className="stack" style={{ gap: 10 }} onSubmit={(e) => void enviarCorreo(e)}>
-              {accionCorreo === 'crear' && (
+              <p className="muted small" style={{ margin: 0 }}>
+                Próximamente. Por ahora el ingreso es únicamente con Google.
+              </p>
+              <form className="stack" style={{ gap: 10 }} onSubmit={enviarCorreo}>
+                {accionCorreo === 'crear' && (
+                  <label className="field">
+                    Tu nombre
+                    <input
+                      value={nombreCuenta}
+                      onChange={(e) => setNombreCuenta(e.target.value)}
+                      placeholder="Ej. Camila Gómez"
+                      maxLength={40}
+                      autoComplete="name"
+                      required
+                    />
+                  </label>
+                )}
                 <label className="field">
-                  Tu nombre
+                  Correo electrónico
                   <input
-                    value={nombreCuenta}
-                    onChange={(e) => setNombreCuenta(e.target.value)}
-                    placeholder="Ej. Camila Gómez"
-                    maxLength={40}
-                    autoComplete="name"
+                    type="email"
+                    value={correo}
+                    onChange={(e) => setCorreo(e.target.value)}
+                    placeholder="tu@correo.com"
+                    autoComplete="email"
                     required
                   />
                 </label>
-              )}
-              <label className="field">
-                Correo electrónico
-                <input
-                  type="email"
-                  value={correo}
-                  onChange={(e) => setCorreo(e.target.value)}
-                  placeholder="tu@correo.com"
-                  autoComplete="email"
-                  required
-                />
-              </label>
-              <label className="field">
-                Contraseña
-                <input
-                  type="password"
-                  value={clave}
-                  onChange={(e) => setClave(e.target.value)}
-                  placeholder="Mínimo 6 caracteres"
-                  minLength={6}
-                  autoComplete={accionCorreo === 'crear' ? 'new-password' : 'current-password'}
-                  required
-                />
-              </label>
-              <button
-                type="submit"
-                className="btn block"
-                disabled={
-                  busy ||
-                  !correo.trim() ||
-                  clave.length < 6 ||
-                  (accionCorreo === 'crear' && nombreCuenta.trim().length < 2)
-                }
-              >
-                {busy
-                  ? 'Autenticando con Firebase…'
-                  : accionCorreo === 'crear'
-                    ? 'Crear cuenta y entrar'
-                    : 'Entrar con correo'}{' '}
-                <Icon name="arrowRight" />
-              </button>
-            </form>
+                <label className="field">
+                  Contraseña
+                  <input
+                    type="password"
+                    value={clave}
+                    onChange={(e) => setClave(e.target.value)}
+                    placeholder="Mínimo 6 caracteres"
+                    minLength={6}
+                    autoComplete={accionCorreo === 'crear' ? 'new-password' : 'current-password'}
+                    required
+                  />
+                </label>
+                <button
+                  type="submit"
+                  className="btn block"
+                  disabled={
+                    busy ||
+                    !correo.trim() ||
+                    clave.length < 6 ||
+                    (accionCorreo === 'crear' && nombreCuenta.trim().length < 2)
+                  }
+                >
+                  {accionCorreo === 'crear' ? 'Crear cuenta y entrar' : 'Entrar con correo'} <Icon name="arrowRight" />
+                </button>
+              </form>
+              </div>
+            )}
 
             {error && (
               <p className="alert error fade-in" role="alert" style={{ margin: 0 }}>

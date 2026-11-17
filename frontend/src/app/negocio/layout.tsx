@@ -8,7 +8,7 @@ import { ConnectionBadge } from '@/components/ConnectionBadge';
 import { Icon } from '@/components/Icon';
 import { PromoToast } from '@/components/PromoToast';
 import { limpiarTrazasSeguridad } from '@/lib/autorizacion';
-import { cerrarSesionFirebase } from '@/lib/firebase';
+
 import { useTopics } from '@/lib/hooks';
 import { setSession, type SessionUser } from '@/lib/session';
 
@@ -32,8 +32,7 @@ function BusinessShell({ user, children }: { user: SessionUser; children: React.
         <Avatar name={user.name} />
         <button
           className="btn ghost sm icon"
-          onClick={async () => {
-            await cerrarSesionFirebase();
+          onClick={() => {
             limpiarTrazasSeguridad();
             setSession(null);
             // Recarga completa: la conexión en vivo y todo lo que estaba en memoria

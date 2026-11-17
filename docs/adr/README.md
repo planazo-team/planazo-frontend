@@ -1,6 +1,6 @@
 # Architecture Decision Records (ADRs) — Planazo (Sprint 2)
 
-Decisiones arquitectónicas que sustentan los 7 escenarios de calidad de Planazo (Disponibilidad, Rendimiento, Seguridad, Mantenibilidad y Observabilidad):
+Decisiones arquitectónicas que sustentan los 7 escenarios de calidad de Planazo (Disponibilidad, Rendimiento, Seguridad, Mantenibilidad y Observabilidad). Es un resumen por escenario: la numeración oficial (ADR-01 a ADR-14) es la del documento de arquitectura v2.3.
 
 | ADR | Título | Atributo / Escenario | Responsable | Estado |
 |---|---|---|---|---|
