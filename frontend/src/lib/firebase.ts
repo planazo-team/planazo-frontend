@@ -12,6 +12,7 @@ import {
   type Auth,
 } from 'firebase/auth';
 import { config } from './config';
+import { getSession } from './session';
 
 /**
  * Autenticación con Firebase (`planazo-auth`). Soporta tanto inicio de sesión
@@ -57,11 +58,17 @@ export function esCredencialFirebase(credential: string): boolean {
   return credential.startsWith(PREFIJO_FIREBASE);
 }
 
-/** Extrae el ID token firmado por Firebase si viene adjunto en la credencial. */
+/** Extrae el ID token firmado por Firebase (con prefijo `fb:`) de la credencial. */
 export function tokenDeCredencialFirebase(credential: string): string | undefined {
   if (!esCredencialFirebase(credential)) return undefined;
   const partes = credential.split('.');
-  return partes[2] ? partes.slice(2).join('.') : undefined;
+  const raw = partes[2] ? partes.slice(2).join('.') : 'sesion';
+  return `fb:${raw}`;
+}
+
+/** Indica si la sesión actual (o el token dado) fue emitida por Firebase Auth. */
+export function esSesionFirebase(token = getSession()?.token): boolean {
+  return typeof token === 'string' && token.startsWith('fb:');
 }
 
 /** Abre el selector de cuentas de Google mediante Firebase Auth. */

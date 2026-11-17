@@ -1,4 +1,5 @@
 import { config } from '../config';
+import { esSesionFirebase } from '../firebase';
 import { gateway } from '../mock/gateway';
 import { backend } from '../mock/services';
 import { getSession } from '../session';
@@ -15,7 +16,7 @@ export function realtime(): RealtimeClient {
   if (g.__planazoRealtime) return g.__planazoRealtime;
 
   let client: RealtimeClient;
-  if (config.mode === 'live') {
+  if (config.mode === 'live' && !esSesionFirebase()) {
     // Sin NEXT_PUBLIC_REALTIME_URL no hay canal en vivo: la app sigue funcionando por HTTP.
     const transport = config.realtimeUrl
       ? wsTransport(config.realtimeUrl, () => getSession()?.token)
